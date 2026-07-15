@@ -21,6 +21,7 @@ from app.course.application.dto import (
     CourseMapDto,
     CoursePlaceSnapshotDto,
 )
+from app.weather.application.dto import WeatherSummaryDto
 
 
 class CreateChatSessionRequestDto(ApiDto):
@@ -80,8 +81,8 @@ class CourseDraftDto(ApiDto):
     estimated_total_minutes: int
     conditions: CourseConditionDto
     tags: list[str]
-    weather: dict[str, Any] | None
-    places: list[CourseDraftPlaceDto]
+    weather: WeatherSummaryDto | None
+    places: list[CourseDraftPlaceDto] = Field(min_length=2, max_length=4)
     map: CourseMapDto
 
 

@@ -37,9 +37,6 @@ class ChatRepository:
         self.session.add(chat_session)
         await self.session.flush()
 
-    async def flush(self) -> None:
-        await self.session.flush()
-
     async def commit(self) -> None:
         await self.session.commit()
 

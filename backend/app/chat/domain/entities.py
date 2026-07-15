@@ -44,7 +44,7 @@ class AiCoursePlace(BaseModel):
 class AiCoursePlan(BaseModel):
     """Structured output requested from the OpenAI Responses API."""
 
-    title: str = Field(min_length=1, max_length=80)
+    title: str = Field(min_length=1, max_length=60)
     overall_comment: str = Field(min_length=1, max_length=500)
     assistant_message: str = Field(min_length=1, max_length=500)
     tags: list[str] = Field(min_length=1, max_length=5)

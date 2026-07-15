@@ -181,7 +181,9 @@ class ChatService:
         )
         plan = await self._generate(
             conditions=conditions.model_dump(mode="json", by_alias=True),
-            weather=current.weather,
+            weather=(
+                current.weather.model_dump(mode="json", by_alias=True) if current.weather else None
+            ),
             candidates=candidates,
             user_request=user_content,
             current_draft=current.model_dump(mode="json", by_alias=True),
@@ -263,7 +265,11 @@ class ChatService:
             transportation=(conditions.transportation.value if conditions.transportation else None),
             overall_comment=draft.overall_comment,
             tags_json=self._json(draft.tags),
-            weather_json=self._json(draft.weather) if draft.weather else None,
+            weather_json=(
+                self._json(draft.weather.model_dump(mode="json", by_alias=True))
+                if draft.weather
+                else None
+            ),
             current_order_no=1,
             completion_comment=None,
             started_at=None,
@@ -413,7 +419,7 @@ class ChatService:
             estimated_total_minutes=floor((last_end - start).total_seconds() / 60),
             conditions=typed_conditions,
             tags=[tag if tag.startswith("#") else f"#{tag}" for tag in plan.tags],
-            weather=(weather.model_dump(mode="json", by_alias=True) if weather else None),
+            weather=weather,
             places=draft_places,
             map=CourseMapDto(
                 center_latitude=(

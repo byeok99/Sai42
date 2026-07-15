@@ -1,5 +1,5 @@
 export interface BaseDto<T> {
-  success: boolean
+  success: true
   code: string
   message: string
   data: T | null
@@ -35,4 +35,9 @@ export interface ApiHeaders {
   'X-User-Password'?: string
   'X-Request-Id'?: string
   'Idempotency-Key'?: string
+}
+
+export type AuthenticatedApiHeaders = ApiHeaders & {
+  'X-Profile-Id': string
+  'X-User-Password': string
 }

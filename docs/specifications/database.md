@@ -33,8 +33,9 @@
 | `date_course_places` | 코스 장소 스냅샷 및 장소별 하트 |
 | `community_posts` | 랭킹보드 게시글 |
 | `community_likes` | 게시글 좋아요 |
+| `idempotency_records` | 쓰기 요청의 멱등성 선점 및 최초 응답 보존 |
 
-총 7개 테이블로 구성한다.
+총 8개 테이블로 구성한다.
 
 ## 3. `user_profiles`
 
@@ -120,6 +121,10 @@ CHECK(is_recommendable IN (0, 1))
 ```
 
 공공데이터 및 추천용 컬럼 구조는 현재 상태를 유지한다.
+
+`moods_json`은 공공데이터에 근거가 없으면 빈 배열을 유지할 수 있다. 분위기처럼 주관적인
+조건은 향후 AI가 DB에 저장된 실제 장소의 원본·분류 정보를 근거로 요청 시 판단하며, 그 판단을
+TourAPI 원본 사실처럼 덮어쓰지 않는다.
 
 ## 5. `chat_sessions`
 
@@ -275,7 +280,37 @@ UNIQUE(profile_id, community_post_id)
 
 게시글 좋아요는 다시 누르면 취소한다. 삭제된 게시글에는 좋아요를 등록할 수 없다.
 
-## 10. FK와 삭제 정책
+## 10. `idempotency_records`
+
+일부 쓰기 API에서 같은 요청이 중복 실행되지 않도록 처리 상태와 최초 결과를 보존한다.
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| `id` | `TEXT` | PK | 멱등성 레코드 UUID |
+| `scope_key` | `TEXT` | NOT NULL | 인증 범위. 보호 API는 프로필 ID 기반 값 사용 |
+| `http_method` | `TEXT` | NOT NULL | `POST`, `PUT`, `PATCH`, `DELETE` |
+| `request_path` | `TEXT` | NOT NULL | 정규화한 API 요청 경로 |
+| `idempotency_key` | `TEXT` | NOT NULL | 요청 `Idempotency-Key` UUID |
+| `request_fingerprint` | `TEXT` | NOT NULL | 정규화 요청의 SHA-256 hex digest |
+| `status` | `TEXT` | NOT NULL | `PROCESSING`, `COMPLETED` |
+| `response_status_code` | `INTEGER` | NULL | 완료한 최초 HTTP 상태 |
+| `response_body_json` | `TEXT` | NULL | 완료한 최초 공통 응답 JSON |
+| `created_at` | `TEXT` | NOT NULL | 선점 시각 |
+| `updated_at` | `TEXT` | NOT NULL | 수정 시각 |
+| `expires_at` | `TEXT` | NOT NULL | 재사용 또는 정리 만료 시각 |
+
+```sql
+UNIQUE(scope_key, http_method, request_path, idempotency_key)
+CHECK(http_method IN ('POST', 'PUT', 'PATCH', 'DELETE'))
+CHECK(status IN ('PROCESSING', 'COMPLETED'))
+CHECK(length(request_fingerprint) = 64)
+```
+
+`scope_key`는 HTTP 멱등성 범위를 나타내는 기술 식별자로 도메인 FK가 아니다. 보호 API에서는
+검증한 profileId를 기반으로 만들며, 만료된 레코드는 사용자 도메인 데이터와 독립적으로 정리할
+수 있다. 같은 unique key의 `request_fingerprint`가 다르면 key 재사용 충돌이다.
+
+## 11. FK와 삭제 정책
 
 | 자식 FK | 부모 | 삭제 정책 |
 |---|---|---|
@@ -290,9 +325,9 @@ UNIQUE(profile_id, community_post_id)
 | `community_likes.profile_id` | `user_profiles.id` | CASCADE |
 | `community_likes.community_post_id` | `community_posts.id` | CASCADE |
 
-## 11. 랭킹 산출
+## 12. 랭킹 산출
 
-### 11.1 인기 코스
+### 12.1 인기 코스
 
 ```sql
 SELECT cp.id, COUNT(cl.id) AS like_count
@@ -303,11 +338,11 @@ GROUP BY cp.id
 ORDER BY like_count DESC, cp.published_at DESC, cp.id ASC;
 ```
 
-### 11.2 데이트 마스터
+### 12.2 데이트 마스터
 
 사용자별 공개 게시글이 받은 좋아요 합계를 기준으로 계산한다.
 
-### 11.3 장소별 누적 하트
+### 12.3 장소별 누적 하트
 
 ```sql
 SELECT content_id, COUNT(*) AS heart_count
@@ -318,9 +353,9 @@ GROUP BY content_id;
 
 게시글 좋아요와 장소별 하트는 별개의 데이터다.
 
-## 12. 핵심 트랜잭션
+## 13. 핵심 트랜잭션
 
-### 12.1 코스 확정
+### 13.1 코스 확정
 
 1. 초안과 버전을 확인한다.
 2. `ACTIVE` 코스 중복을 확인한다.
@@ -329,7 +364,7 @@ GROUP BY content_id;
 5. `chat_sessions.status`를 `CONFIRMED`로 변경한다.
 6. 전체를 커밋한다.
 
-### 12.2 데이트 종료
+### 13.2 데이트 종료
 
 1. 본인의 `ACTIVE` 코스를 확인한다.
 2. 모든 `date_course_places.completed_at`이 존재하는지 확인한다.
@@ -339,14 +374,14 @@ GROUP BY content_id;
 6. `community_posts`를 자동 생성한다.
 7. 전체를 커밋한다.
 
-### 12.3 게시글 좋아요
+### 13.3 게시글 좋아요
 
 1. 게시글이 `PUBLISHED`인지 확인한다.
 2. 기존 좋아요 유무를 확인한다.
 3. `community_likes`를 삽입하거나 삭제한다.
 4. 커밋한다.
 
-### 12.4 코스 다시 진행
+### 13.4 코스 다시 진행
 
 1. 원본 코스를 조회한다.
 2. `ACTIVE` 코스 중복을 확인한다.
@@ -358,7 +393,7 @@ GROUP BY content_id;
 
 랭킹보드 공개 코스 복사에도 같은 초기화 규칙을 적용한다.
 
-### 12.5 현재 장소 완료와 다음 장소 전환
+### 13.5 현재 장소 완료와 다음 장소 전환
 
 1. 본인의 `ACTIVE` 코스와 대상 `date_course_places`를 조회한다.
 2. 대상이 이미 완료됐으면 저장 값을 바꾸지 않고 현재 진행 상태를 반환한다.
@@ -369,10 +404,20 @@ GROUP BY content_id;
 7. 마지막 장소면 `current_order_no`는 마지막 순서를 유지한다. 코스 상태는 종료 요청 전까지 `ACTIVE`다.
 8. 커밋하고 완료 수, 전체 수, 다음 장소를 반환한다.
 
-### 12.6 삭제 게시글 재발행
+### 13.6 삭제 게시글 재발행
 
 1. 본인의 완료 코스와 `date_course_id`가 같은 게시글을 삭제 상태까지 포함해 조회한다.
 2. `PUBLISHED`면 중복 오류로 종료한다.
 3. `DELETED` 행의 상태, 공개일, 코멘트, 작성자 스냅샷을 재발행 규칙대로 갱신한다.
 4. 기존 좋아요 행은 변경하지 않는다.
 5. 커밋한다.
+
+### 13.7 Idempotency-Key 요청
+
+1. 인증과 기본 요청 DTO를 먼저 검증한다.
+2. profileId 기반 `scope_key`, method, path, key로 레코드를 조회한다.
+3. 기존 완료 레코드의 fingerprint가 같으면 저장한 최초 상태와 body를 반환한다.
+4. fingerprint가 다르면 key 재사용 충돌로 종료한다.
+5. 레코드가 없거나 만료된 처리 레코드이면 `PROCESSING` 상태를 원자적으로 선점한다.
+6. 도메인 트랜잭션이 끝나면 최초 상태와 body를 저장하고 `COMPLETED`로 변경한다.
+7. 처리되지 않은 5xx 실패는 재시도할 수 있도록 완료 결과로 보존하지 않는다.

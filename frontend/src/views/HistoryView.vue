@@ -18,6 +18,11 @@ const totalPlacesVisited = computed(() => {
 function showInfo() {
   store.triggerToast('월별·테마별 필터가 들어갈 자리예요')
 }
+
+import { onMounted } from 'vue'
+onMounted(() => {
+  store.fetchHistory()
+})
 </script>
 
 <template>

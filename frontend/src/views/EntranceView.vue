@@ -16,9 +16,9 @@ function changeAuthMode(mode: 'enter' | 'register') {
   store.authMode = mode
 }
 
-function handleAuth() {
+async function handleAuth() {
   if (store.authMode === 'register') {
-    const success = store.register(nameInput.value, pwInput.value)
+    const success = await store.register(nameInput.value, pwInput.value)
     if (success) {
       router.push({ name: 'chat' })
       if (!store.surveyDone) {
@@ -26,7 +26,7 @@ function handleAuth() {
       }
     }
   } else {
-    const success = store.login(nameInput.value, pwInput.value)
+    const success = await store.login(nameInput.value, pwInput.value)
     if (success) {
       router.push({ name: 'chat' })
       if (!store.surveyDone) {

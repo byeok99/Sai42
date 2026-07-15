@@ -12,23 +12,23 @@ export interface CourseRepository {
 }
 
 export class CourseRepositoryImpl implements CourseRepository {
-  async getCurrentCourse(headers) {
+  async getCurrentCourse(headers: any) {
     return apiClient.get<CurrentCourseDto>(apiEndpoints.currentCourse, { headers })
   }
 
-  async completeCoursePlace(coursePlaceId, headers) {
+  async completeCoursePlace(coursePlaceId: string, headers: any) {
     return apiClient.put<CurrentCourseDto>(apiEndpoints.completeCoursePlace(coursePlaceId), undefined, { headers })
   }
 
-  async heartCoursePlace(coursePlaceId, headers) {
+  async heartCoursePlace(coursePlaceId: string, headers: any) {
     return apiClient.put<CurrentCourseDto>(apiEndpoints.heartCoursePlace(coursePlaceId), undefined, { headers })
   }
 
-  async unheartCoursePlace(coursePlaceId, headers) {
+  async unheartCoursePlace(coursePlaceId: string, headers: any) {
     return apiClient.delete<CurrentCourseDto>(apiEndpoints.heartCoursePlace(coursePlaceId), { headers })
   }
 
-  async completeCurrentCourse(payload, headers) {
+  async completeCurrentCourse(payload: any, headers: any) {
     return apiClient.post<CurrentCourseDto>(apiEndpoints.completeCurrentCourse, payload, { headers })
   }
 }

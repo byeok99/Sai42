@@ -10,16 +10,20 @@ export interface HistoryRepository {
 }
 
 export class HistoryRepositoryImpl implements HistoryRepository {
-  async listMyDateCourses(headers) {
+  async listMyDateCourses(headers: any) {
     return apiClient.get<CurrentCourseDto[]>(apiEndpoints.myDateCourses, { headers })
   }
 
-  async getMyDateCourseDetail(courseId, headers) {
+  async getMyDateCourseDetail(courseId: string, headers: any) {
     return apiClient.get<CurrentCourseDto>(apiEndpoints.myDateCourseDetail(courseId), { headers })
   }
 
-  async restartCourse(courseId, headers) {
+  async restartCourse(courseId: string, headers: any) {
     return apiClient.post<CurrentCourseDto>(apiEndpoints.restartDateCourse(courseId), undefined, { headers })
+  }
+
+  async deleteMyDateCourse(courseId: string, headers: any) {
+    return apiClient.delete<void>(`${apiEndpoints.myDateCourses}/${courseId}`, { headers })
   }
 }
 

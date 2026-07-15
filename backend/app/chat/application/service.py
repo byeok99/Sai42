@@ -3,6 +3,7 @@
 import json
 from datetime import datetime, timedelta
 from math import floor
+from typing import NoReturn
 from uuid import uuid4
 
 from sqlalchemy.exc import IntegrityError
@@ -20,7 +21,9 @@ from app.chat.application.dto import (
     SendChatMessageDto,
     SendChatMessageRequestDto,
 )
+from app.chat.application.quality import CoursePlanQualityPolicy, haversine_km
 from app.chat.domain.entities import (
+    AiConversationMessage,
     AiCoursePlan,
     AiCourseProviderError,
     AiCourseProviderUnavailable,
@@ -63,6 +66,10 @@ GAP_MINUTES = {
     ScheduleDensity.TIGHT: 10,
 }
 
+MAX_CONVERSATION_MESSAGES = 8
+MAX_CONVERSATION_CHARACTERS = 4000
+QUALITY_FALLBACK_WARNING = "요청 조건을 안전하게 반영하지 못해 기존 코스를 유지했습니다."
+
 
 class ChatService:
     def __init__(
@@ -79,6 +86,7 @@ class ChatService:
         self.ai_provider = ai_provider
         self.weather_service = weather_service
         self.candidate_limit = candidate_limit
+        self.quality_policy = CoursePlanQualityPolicy()
 
     async def create_session(
         self,
@@ -95,7 +103,7 @@ class ChatService:
         candidates = self._rank_candidates(
             places,
             activities=request.activities,
-            current_ids=set(),
+            current_draft=None,
             action=None,
         )
         if len(candidates) < 2:
@@ -106,13 +114,17 @@ class ChatService:
             )
         conditions = request.conditions()
         user_request = request.initial_message or "입력한 조건으로 데이트 코스를 만들어줘."
-        plan = await self._generate(
+        plan, violations = await self._generate(
             conditions=conditions.model_dump(mode="json", by_alias=True),
             weather=weather.model_dump(mode="json", by_alias=True),
             candidates=candidates,
             user_request=user_request,
             current_draft=None,
+            conversation=[],
+            action=None,
         )
+        if violations:
+            self._raise_provider_error()
         draft = self._build_draft(
             plan,
             candidates=candidates,
@@ -166,12 +178,11 @@ class ChatService:
             self._raise_draft_conflict()
         current = self._required_draft(chat_session)
         conditions = current.conditions
-        current_ids = {item.place.content_id for item in current.places if item.place.content_id}
         places = await self.repository.list_recommendable_places(conditions.district)
         candidates = self._rank_candidates(
             places,
             activities=conditions.activities,
-            current_ids=current_ids,
+            current_draft=current,
             action=request.quick_action,
         )
         user_content = (
@@ -179,26 +190,38 @@ class ChatService:
             if request.message is not None
             else QUICK_ACTION_MESSAGES[request.quick_action]
         )
-        plan = await self._generate(
+        plan, violations = await self._generate(
             conditions=conditions.model_dump(mode="json", by_alias=True),
             weather=current.weather,
             candidates=candidates,
             user_request=user_content,
             current_draft=current.model_dump(mode="json", by_alias=True),
+            conversation=self._conversation_context(self._messages(chat_session)),
+            action=request.quick_action,
         )
-        proposed = self._build_draft(
-            plan,
-            candidates=candidates,
-            conditions=conditions,
-            weather=(
-                WeatherSummaryDto.model_validate(current.weather) if current.weather else None
-            ),
-            version=current.version + 1,
-            draft_id=current.draft_id,
-        )
-        changed = self._draft_changed(current, proposed)
-        if not changed:
+        if violations:
+            plan = plan.model_copy(
+                update={
+                    "assistant_message": QUALITY_FALLBACK_WARNING,
+                    "warnings": [QUALITY_FALLBACK_WARNING],
+                }
+            )
             proposed = current
+            changed = False
+        else:
+            proposed = self._build_draft(
+                plan,
+                candidates=candidates,
+                conditions=conditions,
+                weather=(
+                    WeatherSummaryDto.model_validate(current.weather) if current.weather else None
+                ),
+                version=current.version + 1,
+                draft_id=current.draft_id,
+            )
+            changed = self._draft_changed(current, proposed)
+            if not changed:
+                proposed = current
         now = now_seoul()
         user_message = self._message(ChatMessageRole.USER, user_content, now)
         assistant_message = self._message(ChatMessageRole.ASSISTANT, plan.assistant_message, now)
@@ -310,6 +333,65 @@ class ChatService:
         candidates: list[PlaceCandidate],
         user_request: str,
         current_draft: dict[str, object] | None,
+        conversation: list[AiConversationMessage],
+        action: CourseEditAction | None,
+    ) -> tuple[AiCoursePlan, list[str]]:
+        from app.course.application.dto import CourseConditionDto
+
+        typed_conditions = CourseConditionDto.model_validate(conditions)
+        typed_current = (
+            CourseDraftDto.model_validate(current_draft) if current_draft is not None else None
+        )
+        plan = await self._request_plan(
+            conditions=conditions,
+            weather=weather,
+            candidates=candidates,
+            user_request=user_request,
+            current_draft=current_draft,
+            conversation=conversation,
+            action=action,
+            validation_errors=[],
+        )
+        violations = self.quality_policy.violations(
+            plan,
+            conditions=typed_conditions,
+            candidates=candidates,
+            current_draft=typed_current,
+            action=action,
+        )
+        if not violations:
+            return plan, []
+
+        repaired = await self._request_plan(
+            conditions=conditions,
+            weather=weather,
+            candidates=candidates,
+            user_request=user_request,
+            current_draft=current_draft,
+            conversation=conversation,
+            action=action,
+            validation_errors=violations,
+        )
+        remaining = self.quality_policy.violations(
+            repaired,
+            conditions=typed_conditions,
+            candidates=candidates,
+            current_draft=typed_current,
+            action=action,
+        )
+        return repaired, remaining
+
+    async def _request_plan(
+        self,
+        *,
+        conditions: dict[str, object],
+        weather: dict[str, object] | None,
+        candidates: list[PlaceCandidate],
+        user_request: str,
+        current_draft: dict[str, object] | None,
+        conversation: list[AiConversationMessage],
+        action: CourseEditAction | None,
+        validation_errors: list[str],
     ) -> AiCoursePlan:
         if self.ai_provider is None:
             raise BusinessException(
@@ -325,6 +407,9 @@ class ChatService:
                     candidates=candidates,
                     user_request=user_request,
                     current_draft=current_draft,
+                    conversation=conversation,
+                    edit_action=action.value if action else None,
+                    validation_errors=validation_errors,
                 )
             )
         except AiCourseProviderUnavailable:
@@ -334,11 +419,7 @@ class ChatService:
                 message="AI 코스 생성 서비스를 잠시 사용할 수 없습니다.",
             ) from None
         except AiCourseProviderError:
-            raise BusinessException(
-                status_code=502,
-                code="CHAT_AI_PROVIDER_ERROR",
-                message="AI 코스 생성 응답을 처리할 수 없습니다.",
-            ) from None
+            self._raise_provider_error()
 
     def _build_draft(
         self,
@@ -435,14 +516,46 @@ class ChatService:
         places: list[Place],
         *,
         activities: list[ActivityType],
-        current_ids: set[str],
+        current_draft: CourseDraftDto | None,
         action: CourseEditAction | None,
     ) -> list[PlaceCandidate]:
+        current_ids = (
+            {
+                item.place.content_id
+                for item in current_draft.places
+                if item.place.content_id is not None
+            }
+            if current_draft
+            else set()
+        )
+        current_coordinates = (
+            [
+                (item.place.latitude, item.place.longitude)
+                for item in current_draft.places
+                if item.place.latitude is not None and item.place.longitude is not None
+            ]
+            if current_draft
+            else []
+        )
+        requested_activities = {item.value for item in activities}
+
+        def distance_to_current(place: Place) -> float | None:
+            if not current_coordinates:
+                return None
+            return min(
+                haversine_km(place.latitude, place.longitude, latitude, longitude)
+                for latitude, longitude in current_coordinates
+            )
+
         def score(place: Place) -> tuple[int, str]:
             stored_activities = set(self._list_json(place.activities_json))
-            value = 10 * len(stored_activities & {item.value for item in activities})
+            value = 10 * len(stored_activities & requested_activities)
             value += 2 if place.image_url else 0
-            value += 20 if place.content_id in current_ids else 0
+            value += 30 if place.content_id in current_ids else 0
+            distance = distance_to_current(place)
+            if distance is not None:
+                distance_weight = 20 if action == CourseEditAction.REDUCE_ROUTE else 2
+                value -= round(distance * distance_weight)
             title = place.title.casefold()
             if action == CourseEditAction.CHANGE_CAFE and any(
                 keyword in title for keyword in ("카페", "커피", "coffee", "디저트", "베이커리")
@@ -463,11 +576,69 @@ class ChatService:
                 value -= 50
             return (-value, place.content_id)
 
-        ranked = sorted(places, key=score)[: self.candidate_limit]
-        return [self._candidate(place) for place in ranked]
+        ranked = sorted(places, key=score)
+        selected: list[Place] = []
+        selected_ids: set[str] = set()
+
+        def add(place: Place | None) -> None:
+            if (
+                place is not None
+                and place.content_id not in selected_ids
+                and len(selected) < self.candidate_limit
+            ):
+                selected.append(place)
+                selected_ids.add(place.content_id)
+
+        for activity in activities:
+            add(
+                next(
+                    (
+                        place
+                        for place in ranked
+                        if activity.value in self._list_json(place.activities_json)
+                    ),
+                    None,
+                )
+            )
+        if action != CourseEditAction.REGENERATE:
+            for place in ranked:
+                if place.content_id in current_ids:
+                    add(place)
+        for category in dict.fromkeys(
+            PLACE_CATEGORY_BY_CONTENT_TYPE_ID[place.content_type_id] for place in ranked
+        ):
+            add(
+                next(
+                    (
+                        place
+                        for place in ranked
+                        if PLACE_CATEGORY_BY_CONTENT_TYPE_ID[place.content_type_id] == category
+                    ),
+                    None,
+                )
+            )
+        for place in ranked:
+            add(place)
+
+        return [
+            self._candidate(
+                place,
+                requested_activities=requested_activities,
+                current_ids=current_ids,
+                distance_to_current=distance_to_current(place),
+            )
+            for place in selected
+        ]
 
     @staticmethod
-    def _candidate(place: Place) -> PlaceCandidate:
+    def _candidate(
+        place: Place,
+        *,
+        requested_activities: set[str],
+        current_ids: set[str],
+        distance_to_current: float | None,
+    ) -> PlaceCandidate:
+        activities = ChatService._list_json(place.activities_json)
         return PlaceCandidate(
             content_id=place.content_id,
             title=place.title,
@@ -478,7 +649,12 @@ class ChatService:
             latitude=place.latitude,
             longitude=place.longitude,
             image_url=place.image_url or None,
-            activities=ChatService._list_json(place.activities_json),
+            activities=activities,
+            requested_activity_matches=sorted(requested_activities & set(activities)),
+            is_current=place.content_id in current_ids,
+            distance_to_current_course_km=(
+                round(distance_to_current, 3) if distance_to_current is not None else None
+            ),
         )
 
     @staticmethod
@@ -591,6 +767,25 @@ class ChatService:
         return [message.model_dump(mode="json", by_alias=True) for message in messages]
 
     @staticmethod
+    def _conversation_context(messages: list[ChatMessageDto]) -> list[AiConversationMessage]:
+        selected: list[AiConversationMessage] = []
+        remaining_characters = MAX_CONVERSATION_CHARACTERS
+        for message in reversed(messages[-MAX_CONVERSATION_MESSAGES:]):
+            if remaining_characters <= 0:
+                break
+            content = message.content[:remaining_characters]
+            if not content:
+                continue
+            selected.append(
+                AiConversationMessage(
+                    role=message.role.value,
+                    content=content,
+                )
+            )
+            remaining_characters -= len(content)
+        return list(reversed(selected))
+
+    @staticmethod
     def _draft_changed(current: CourseDraftDto, proposed: CourseDraftDto) -> bool:
         current_payload = ChatService._comparable_draft(current)
         proposed_payload = ChatService._comparable_draft(proposed)
@@ -638,6 +833,14 @@ class ChatService:
             status_code=409,
             code="CHAT_DRAFT_VERSION_CONFLICT",
             message="코스 초안 버전이 현재 상태와 일치하지 않습니다.",
+        )
+
+    @staticmethod
+    def _raise_provider_error() -> NoReturn:
+        raise BusinessException(
+            status_code=502,
+            code="CHAT_AI_PROVIDER_ERROR",
+            message="AI 코스 생성 응답을 처리할 수 없습니다.",
         )
 
     @staticmethod

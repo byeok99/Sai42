@@ -1,63 +1,63 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue';
-import { useRouter } from 'vue-router';
-import { useDateStore } from '@/stores/dateStore';
-import BaseCard from '@/components/common/BaseCard.vue';
-import BaseButton from '@/components/common/BaseButton.vue';
-import BaseBadge from '@/components/common/BaseBadge.vue';
+import { ref, onMounted, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
+import { useDateStore } from '@/stores/dateStore'
+import BaseCard from '@/components/common/BaseCard.vue'
+import BaseButton from '@/components/common/BaseButton.vue'
+import BaseBadge from '@/components/common/BaseBadge.vue'
 
-const store = useDateStore();
-const router = useRouter();
+const store = useDateStore()
+const router = useRouter()
 
-const chatInput = ref('');
-const messagesContainer = ref<HTMLDivElement | null>(null);
-const bouncedMarker = ref<number | null>(null);
+const chatInput = ref('')
+const messagesContainer = ref<HTMLDivElement | null>(null)
+const bouncedMarker = ref<number | null>(null)
 
 function scrollToBottom() {
   nextTick(() => {
     if (messagesContainer.value) {
-      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
+      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
     }
-  });
+  })
 }
 
 function handleSend() {
-  if (!chatInput.value.trim()) return;
-  store.sendChatMessage(chatInput.value);
-  chatInput.value = '';
-  scrollToBottom();
+  if (!chatInput.value.trim()) return
+  store.sendChatMessage(chatInput.value)
+  chatInput.value = ''
+  scrollToBottom()
 }
 
 function handleQuickAction(text: string) {
-  store.sendChatMessage(text);
-  scrollToBottom();
+  store.sendChatMessage(text)
+  scrollToBottom()
 }
 
 function clickMarker(idx: number, title: string) {
-  bouncedMarker.value = idx;
+  bouncedMarker.value = idx
   setTimeout(() => {
-    bouncedMarker.value = null;
-  }, 500);
-  store.triggerToast(title);
+    bouncedMarker.value = null
+  }, 500)
+  store.triggerToast(title)
 }
 
 function triggerMapFit() {
   store.course.coords.forEach((_, idx) => {
     setTimeout(() => {
-      clickMarker(idx, store.course.places[idx] || '');
-    }, idx * 80);
-  });
-  store.triggerToast('전체 코스를 한눈에 보여드릴게요');
+      clickMarker(idx, store.course.places[idx] || '')
+    }, idx * 80)
+  })
+  store.triggerToast('전체 코스를 한눈에 보여드릴게요')
 }
 
 function confirmCourse() {
-  store.decideCourse();
-  router.push({ name: 'current' });
+  store.decideCourse()
+  router.push({ name: 'current' })
 }
 
 onMounted(() => {
-  scrollToBottom();
-});
+  scrollToBottom()
+})
 </script>
 
 <template>
@@ -92,9 +92,7 @@ onMounted(() => {
           <strong>유성온천문화축제</strong>
           <p>유림공원 일원 · 18:00 야간 프로그램</p>
         </div>
-        <button class="small-btn" @click="store.addFestivalToCourse">
-          코스에 넣기
-        </button>
+        <button class="small-btn" @click="store.addFestivalToCourse">코스에 넣기</button>
       </BaseCard>
 
       <!-- Map Card -->
@@ -104,9 +102,7 @@ onMounted(() => {
             <span class="label">LIVE COURSE</span>
             <strong>현재 데이트 지도</strong>
           </div>
-          <button class="small-btn" @click="triggerMapFit">
-            전체보기
-          </button>
+          <button class="small-btn" @click="triggerMapFit">전체보기</button>
         </div>
         <div class="map-container">
           <span class="road r1"></span>
@@ -124,7 +120,7 @@ onMounted(() => {
             <button
               v-if="store.course.fest"
               class="marker fest"
-              style="left: 39%; top: 32%;"
+              style="left: 39%; top: 32%"
               @click="store.triggerToast('유성온천문화축제')"
             >
               <i>F</i>
@@ -148,11 +144,7 @@ onMounted(() => {
           <span>☂️ 비 생존력 5</span>
         </div>
         <ol class="timeline">
-          <li
-            v-for="(place, idx) in store.course.places"
-            :key="idx"
-            :data-n="idx + 1"
-          >
+          <li v-for="(place, idx) in store.course.places" :key="idx" :data-n="idx + 1">
             {{ place }}
           </li>
         </ol>
@@ -168,11 +160,7 @@ onMounted(() => {
           </div>
         </div>
         <div ref="messagesContainer" class="messages">
-          <div
-            v-for="(msg, idx) in store.messages"
-            :key="idx"
-            :class="['msg', msg.role]"
-          >
+          <div v-for="(msg, idx) in store.messages" :key="idx" :class="['msg', msg.role]">
             <p v-html="msg.content"></p>
           </div>
         </div>
@@ -198,9 +186,7 @@ onMounted(() => {
 
     <!-- Decide Fixed Bottom Panel -->
     <div class="decide-action-bar">
-      <BaseButton variant="primary" full @click="confirmCourse">
-        이 코스로 결정하기 💗
-      </BaseButton>
+      <BaseButton variant="primary" full @click="confirmCourse"> 이 코스로 결정하기 💗 </BaseButton>
     </div>
   </div>
 </template>
@@ -334,14 +320,14 @@ onMounted(() => {
   position: relative;
   overflow: hidden;
   border-radius: 16px;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.55) 1px, transparent 1px),
-              linear-gradient(rgba(255, 255, 255, 0.55) 1px, transparent 1px),
-              #e3ece5;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.55) 1px, transparent 1px),
+    linear-gradient(rgba(255, 255, 255, 0.55) 1px, transparent 1px), #e3ece5;
   background-size: 28px 28px;
 }
 
 .map-container::before {
-  content: "";
+  content: '';
   position: absolute;
   width: 420px;
   height: 50px;

@@ -1,21 +1,21 @@
 <script setup lang="ts">
 interface Props {
-  modelValue: string;
-  id?: string;
-  type?: string;
-  label?: string;
-  placeholder?: string;
-  maxlength?: number;
-  inputmode?: 'none' | 'text' | 'decimal' | 'numeric' | 'tel' | 'search' | 'email' | 'url';
+  modelValue: string
+  id?: string
+  type?: string
+  label?: string
+  placeholder?: string
+  maxlength?: number
+  inputmode?: 'none' | 'text' | 'decimal' | 'numeric' | 'tel' | 'search' | 'email' | 'url'
 }
 
 withDefaults(defineProps<Props>(), {
   type: 'text',
-});
+})
 
 defineEmits<{
-  (e: 'update:modelValue', value: string): void;
-}>();
+  (e: 'update:modelValue', value: string): void
+}>()
 </script>
 
 <template>
@@ -55,7 +55,9 @@ input {
   border-radius: 14px;
   outline: 0;
   background: #fffdfa;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
   color: var(--ink);
 }
 

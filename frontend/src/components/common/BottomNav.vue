@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
-const route = useRoute();
-const router = useRouter();
+const route = useRoute()
+const router = useRouter()
 
-const currentTab = computed(() => route.name as string);
+const currentTab = computed(() => route.name as string)
 
 function navigate(tabName: string) {
-  router.push({ name: tabName });
+  router.push({ name: tabName })
 }
 </script>
 

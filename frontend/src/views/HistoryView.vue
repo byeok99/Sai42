@@ -1,22 +1,22 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { useDateStore } from '@/stores/dateStore';
-import BaseCard from '@/components/common/BaseCard.vue';
+import { computed } from 'vue'
+import { useDateStore } from '@/stores/dateStore'
+import BaseCard from '@/components/common/BaseCard.vue'
 
-const store = useDateStore();
+const store = useDateStore()
 
 const averageRating = computed(() => {
-  if (store.history.length === 0) return '0.0';
-  const sum = store.history.reduce((acc, curr) => acc + curr.rating, 0);
-  return (sum / store.history.length).toFixed(1);
-});
+  if (store.history.length === 0) return '0.0'
+  const sum = store.history.reduce((acc, curr) => acc + curr.rating, 0)
+  return (sum / store.history.length).toFixed(1)
+})
 
 const totalPlacesVisited = computed(() => {
-  return store.history.reduce((acc, curr) => acc + curr.places.length, 0);
-});
+  return store.history.reduce((acc, curr) => acc + curr.places.length, 0)
+})
 
 function showInfo() {
-  store.triggerToast('월별·테마별 필터가 들어갈 자리예요');
+  store.triggerToast('월별·테마별 필터가 들어갈 자리예요')
 }
 </script>
 
@@ -55,11 +55,7 @@ function showInfo() {
 
       <!-- History List -->
       <div class="hlist">
-        <BaseCard
-          v-for="(item, idx) in store.history"
-          :key="idx"
-          class="history-card"
-        >
+        <BaseCard v-for="(item, idx) in store.history" :key="idx" class="history-card">
           <div class="hhead">
             <div class="date-badge">{{ item.date }}</div>
             <div>

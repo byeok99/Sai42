@@ -1,9 +1,9 @@
 <script setup lang="ts">
 interface Props {
-  variant?: 'primary' | 'secondary';
-  full?: boolean;
-  disabled?: boolean;
-  type?: 'button' | 'submit' | 'reset';
+  variant?: 'primary' | 'secondary'
+  full?: boolean
+  disabled?: boolean
+  type?: 'button' | 'submit' | 'reset'
 }
 
 withDefaults(defineProps<Props>(), {
@@ -11,11 +11,11 @@ withDefaults(defineProps<Props>(), {
   full: false,
   disabled: false,
   type: 'button',
-});
+})
 
 defineEmits<{
-  (e: 'click', event: MouseEvent): void;
-}>();
+  (e: 'click', event: MouseEvent): void
+}>()
 </script>
 
 <template>
@@ -39,7 +39,9 @@ defineEmits<{
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: opacity 0.2s, transform 0.1s;
+  transition:
+    opacity 0.2s,
+    transform 0.1s;
   user-select: none;
   font-size: 14px;
 }

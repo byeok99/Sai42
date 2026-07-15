@@ -1,33 +1,33 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { useRouter } from 'vue-router';
-import { useDateStore } from '@/stores/dateStore';
-import BaseCard from '@/components/common/BaseCard.vue';
-import BaseButton from '@/components/common/BaseButton.vue';
+import { computed } from 'vue'
+import { useRouter } from 'vue-router'
+import { useDateStore } from '@/stores/dateStore'
+import BaseCard from '@/components/common/BaseCard.vue'
+import BaseButton from '@/components/common/BaseButton.vue'
 
-const store = useDateStore();
-const router = useRouter();
+const store = useDateStore()
+const router = useRouter()
 
 const progressPct = computed(() => {
-  if (!store.activeCourse) return 0;
-  const total = store.activeCourse.places.length;
-  return Math.round(((store.activeProgress + 1) / total) * 100);
-});
+  if (!store.activeCourse) return 0
+  const total = store.activeCourse.places.length
+  return Math.round(((store.activeProgress + 1) / total) * 100)
+})
 
 function handleLikePlace(idx: number) {
-  store.togglePlaceLike(idx);
+  store.togglePlaceLike(idx)
 }
 
 function handleNext() {
-  store.nextPlace();
+  store.nextPlace()
 }
 
 function endDating() {
-  store.showCommentModal = true;
+  store.showCommentModal = true
 }
 
 function navigateToChat() {
-  router.push({ name: 'chat' });
+  router.push({ name: 'chat' })
 }
 </script>
 
@@ -47,9 +47,7 @@ function navigateToChat() {
         <div class="empty-emoji">🗺️</div>
         <h3>아직 오늘의 코스가 없어요</h3>
         <p>사이봇과 대화해서 두 분만의 코스를 만들어 보세요.</p>
-        <BaseButton variant="primary" @click="navigateToChat">
-          코스 만들기
-        </BaseButton>
+        <BaseButton variant="primary" @click="navigateToChat"> 코스 만들기 </BaseButton>
       </div>
 
       <!-- Active Course Body -->
@@ -59,7 +57,9 @@ function navigateToChat() {
           <h3>{{ store.activeCourse.title }}</h3>
           <p class="desc">오늘의 날씨와 두 분의 취향을 반영했어요.</p>
           <div class="progress-meta">
-            <span>{{ store.activeProgress + 1 }} / {{ store.activeCourse.places.length }} 장소</span>
+            <span
+              >{{ store.activeProgress + 1 }} / {{ store.activeCourse.places.length }} 장소</span
+            >
             <span>{{ progressPct }}%</span>
           </div>
           <div class="progress-bar">
@@ -87,7 +87,7 @@ function navigateToChat() {
             :class="[
               'place-card',
               { done: idx < store.activeProgress },
-              { current: idx === store.activeProgress }
+              { current: idx === store.activeProgress },
             ]"
           >
             <div class="step-badge">
@@ -96,7 +96,13 @@ function navigateToChat() {
             <div class="place-info">
               <h4>{{ place }}</h4>
               <p>
-                {{ idx === store.activeProgress ? '현재 방문 중이에요' : idx < store.activeProgress ? '다녀온 장소' : '다음 장소' }}
+                {{
+                  idx === store.activeProgress
+                    ? '현재 방문 중이에요'
+                    : idx < store.activeProgress
+                      ? '다녀온 장소'
+                      : '다음 장소'
+                }}
               </p>
             </div>
             <div class="place-actions">
@@ -244,9 +250,9 @@ function navigateToChat() {
   margin-top: 11px;
   position: relative;
   overflow: hidden;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.55) 1px, transparent 1px),
-              linear-gradient(rgba(255, 255, 255, 0.55) 1px, transparent 1px),
-              #e3ece5;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.55) 1px, transparent 1px),
+    linear-gradient(rgba(255, 255, 255, 0.55) 1px, transparent 1px), #e3ece5;
   background-size: 28px 28px;
 }
 

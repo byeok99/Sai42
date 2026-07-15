@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { useRoute } from 'vue-router';
-import { useDateStore } from '@/stores/dateStore';
-import BottomNav from '@/components/common/BottomNav.vue';
-import SurveyModal from '@/components/common/SurveyModal.vue';
-import CommentModal from '@/components/common/CommentModal.vue';
+import { computed } from 'vue'
+import { useRoute } from 'vue-router'
+import { useDateStore } from '@/stores/dateStore'
+import BottomNav from '@/components/common/BottomNav.vue'
+import SurveyModal from '@/components/common/SurveyModal.vue'
+import CommentModal from '@/components/common/CommentModal.vue'
 
-const route = useRoute();
-const store = useDateStore();
+const route = useRoute()
+const store = useDateStore()
 
-const showNav = computed(() => route.name !== 'entrance' && route.name !== undefined);
+const showNav = computed(() => route.name !== 'entrance' && route.name !== undefined)
 </script>
 
 <template>
@@ -44,7 +44,10 @@ const showNav = computed(() => route.name !== 'entrance' && route.name !== undef
     <!-- Desktop Sidebar Guide Panel -->
     <aside class="desktop-note">
       <strong>사이42 웹 프레임</strong>
-      <p>입장 → 취향 조사 → 챗봇 코스 조정 → 지도 확인 → 코스 결정 → 데이트 진행 → 후기 등록 흐름을 이용하실 수 있습니다.</p>
+      <p>
+        입장 → 취향 조사 → 챗봇 코스 조정 → 지도 확인 → 코스 결정 → 데이트 진행 → 후기 등록 흐름을
+        이용하실 수 있습니다.
+      </p>
       <div class="demo">
         <b>데모 계정</b>
         닉네임: 복숭아와호두<br />

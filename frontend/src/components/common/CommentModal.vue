@@ -1,24 +1,24 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-import { useDateStore } from '@/stores/dateStore';
-import BaseButton from './BaseButton.vue';
+import { ref } from 'vue'
+import { useDateStore } from '@/stores/dateStore'
+import BaseButton from './BaseButton.vue'
 
-const store = useDateStore();
-const comment = ref('');
-const rating = ref(5);
+const store = useDateStore()
+const comment = ref('')
+const rating = ref(5)
 
 function setRating(r: number) {
-  rating.value = r;
+  rating.value = r
 }
 
 function submit() {
-  store.submitReview(comment.value, rating.value);
-  comment.value = '';
-  rating.value = 5;
+  store.submitReview(comment.value, rating.value)
+  comment.value = ''
+  rating.value = 5
 }
 
 function cancel() {
-  store.showCommentModal = false;
+  store.showCommentModal = false
 }
 </script>
 
@@ -34,11 +34,7 @@ function cancel() {
         placeholder="예: 비 오는 날에도 이동이 편해서 좋았어요!"
       ></textarea>
       <div class="rating">
-        <button
-          v-for="i in 5"
-          :key="i"
-          @click="setRating(i)"
-        >
+        <button v-for="i in 5" :key="i" @click="setRating(i)">
           {{ i <= rating ? '♥' : '♡' }}
         </button>
       </div>

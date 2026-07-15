@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { useDateStore } from '@/stores/dateStore';
-import BaseButton from './BaseButton.vue';
+import { computed } from 'vue'
+import { useDateStore } from '@/stores/dateStore'
+import BaseButton from './BaseButton.vue'
 
-const store = useDateStore();
+const store = useDateStore()
 
-const currentStepData = computed(() => store.surveyStepsList[store.surveyStep]!);
-const answersForKey = computed(() => store.surveyAnswers[currentStepData.value.key]);
-const progressWidth = computed(() => `${(store.surveyStep + 1) * 33.33}%`);
+const currentStepData = computed(() => store.surveyStepsList[store.surveyStep]!)
+const answersForKey = computed(() => store.surveyAnswers[currentStepData.value.key])
+const progressWidth = computed(() => `${(store.surveyStep + 1) * 33.33}%`)
 </script>
 
 <template>

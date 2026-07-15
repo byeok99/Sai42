@@ -1,36 +1,36 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
-import { useDateStore } from '@/stores/dateStore';
-import BaseInput from '@/components/common/BaseInput.vue';
-import BaseButton from '@/components/common/BaseButton.vue';
-import BaseCard from '@/components/common/BaseCard.vue';
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { useDateStore } from '@/stores/dateStore'
+import BaseInput from '@/components/common/BaseInput.vue'
+import BaseButton from '@/components/common/BaseButton.vue'
+import BaseCard from '@/components/common/BaseCard.vue'
 
-const store = useDateStore();
-const router = useRouter();
+const store = useDateStore()
+const router = useRouter()
 
-const nameInput = ref(store.name);
-const pwInput = ref('');
+const nameInput = ref(store.name)
+const pwInput = ref('')
 
 function changeAuthMode(mode: 'enter' | 'register') {
-  store.authMode = mode;
+  store.authMode = mode
 }
 
 function handleAuth() {
   if (store.authMode === 'register') {
-    const success = store.register(nameInput.value, pwInput.value);
+    const success = store.register(nameInput.value, pwInput.value)
     if (success) {
-      router.push({ name: 'chat' });
+      router.push({ name: 'chat' })
       if (!store.surveyDone) {
-        store.showSurvey = true;
+        store.showSurvey = true
       }
     }
   } else {
-    const success = store.login(nameInput.value, pwInput.value);
+    const success = store.login(nameInput.value, pwInput.value)
     if (success) {
-      router.push({ name: 'chat' });
+      router.push({ name: 'chat' })
       if (!store.surveyDone) {
-        store.showSurvey = true;
+        store.showSurvey = true
       }
     }
   }
@@ -48,10 +48,7 @@ function handleAuth() {
 
     <BaseCard class="login-card">
       <div class="seg">
-        <button
-          :class="{ active: store.authMode === 'enter' }"
-          @click="changeAuthMode('enter')"
-        >
+        <button :class="{ active: store.authMode === 'enter' }" @click="changeAuthMode('enter')">
           입장하기
         </button>
         <button
@@ -85,7 +82,11 @@ function handleAuth() {
       </BaseButton>
 
       <p class="help">
-        {{ store.authMode === 'register' ? '새 닉네임과 숫자 4자리 비밀번호를 등록해요.' : '등록한 닉네임과 비밀번호로 입장해요.' }}
+        {{
+          store.authMode === 'register'
+            ? '새 닉네임과 숫자 4자리 비밀번호를 등록해요.'
+            : '등록한 닉네임과 비밀번호로 입장해요.'
+        }}
       </p>
     </BaseCard>
 

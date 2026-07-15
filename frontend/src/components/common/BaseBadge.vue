@@ -1,11 +1,11 @@
 <script setup lang="ts">
 interface Props {
-  variant?: 'default' | 'chip' | 'live' | 'time';
+  variant?: 'default' | 'chip' | 'live' | 'time'
 }
 
 withDefaults(defineProps<Props>(), {
   variant: 'default',
-});
+})
 </script>
 
 <template>

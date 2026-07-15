@@ -1,45 +1,45 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import { useRouter } from 'vue-router';
-import { useDateStore } from '@/stores/dateStore';
-import BaseCard from '@/components/common/BaseCard.vue';
+import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
+import { useDateStore } from '@/stores/dateStore'
+import BaseCard from '@/components/common/BaseCard.vue'
 
-const store = useDateStore();
-const router = useRouter();
+const store = useDateStore()
+const router = useRouter()
 
-const rankTab = ref<'popular' | 'masters' | 'new'>('popular');
+const rankTab = ref<'popular' | 'masters' | 'new'>('popular')
 
 const sortedRankings = computed(() => {
-  const list = [...store.rankings];
+  const list = [...store.rankings]
   if (rankTab.value === 'popular') {
-    return list.sort((x, y) => y.likes - x.likes);
+    return list.sort((x, y) => y.likes - x.likes)
   }
   if (rankTab.value === 'masters') {
-    return list.sort((x, y) => (y.likes + y.use) - (x.likes + x.use));
+    return list.sort((x, y) => y.likes + y.use - (x.likes + x.use))
   }
   if (rankTab.value === 'new') {
     // Treat IDs with 'u' (user created) as newest, or simple reverse order for demo
-    return list.reverse();
+    return list.reverse()
   }
-  return list;
-});
+  return list
+})
 
 function handleLike(id: string) {
-  store.likeRankItem(id);
+  store.likeRankItem(id)
 }
 
 function handleImport(id: string) {
-  const item = store.rankings.find(x => x.id === id);
+  const item = store.rankings.find((x) => x.id === id)
   if (item) {
-    store.importRankedCourse(item);
+    store.importRankedCourse(item)
     setTimeout(() => {
-      router.push({ name: 'chat' });
-    }, 450);
+      router.push({ name: 'chat' })
+    }, 450)
   }
 }
 
 function showHelp() {
-  store.triggerToast('이용 횟수와 좋아요를 합산해 마스터를 선정해요');
+  store.triggerToast('이용 횟수와 좋아요를 합산해 마스터를 선정해요')
 }
 </script>
 
@@ -64,33 +64,18 @@ function showHelp() {
 
       <!-- Tabs -->
       <div class="tabs">
-        <button
-          :class="{ active: rankTab === 'popular' }"
-          @click="rankTab = 'popular'"
-        >
+        <button :class="{ active: rankTab === 'popular' }" @click="rankTab = 'popular'">
           인기 코스
         </button>
-        <button
-          :class="{ active: rankTab === 'masters' }"
-          @click="rankTab = 'masters'"
-        >
+        <button :class="{ active: rankTab === 'masters' }" @click="rankTab = 'masters'">
           데이트 마스터
         </button>
-        <button
-          :class="{ active: rankTab === 'new' }"
-          @click="rankTab = 'new'"
-        >
-          새 코스
-        </button>
+        <button :class="{ active: rankTab === 'new' }" @click="rankTab = 'new'">새 코스</button>
       </div>
 
       <!-- Rankings List -->
       <div class="ranklist">
-        <BaseCard
-          v-for="(item, idx) in sortedRankings"
-          :key="item.id"
-          class="rank-card"
-        >
+        <BaseCard v-for="(item, idx) in sortedRankings" :key="item.id" class="rank-card">
           <div class="rank-head">
             <div class="num">{{ idx + 1 }}</div>
             <div class="rank-info">
@@ -107,13 +92,9 @@ function showHelp() {
             <span v-for="place in item.places" :key="place">{{ place }}</span>
           </div>
           <div class="actions">
-            <button class="like-btn" @click="handleLike(item.id)">
-              ♡ {{ item.likes }}
-            </button>
+            <button class="like-btn" @click="handleLike(item.id)">♡ {{ item.likes }}</button>
             <span class="use-count">사용 {{ item.use }}회</span>
-            <button class="import-btn" @click="handleImport(item.id)">
-              내 코스로 가져오기
-            </button>
+            <button class="import-btn" @click="handleImport(item.id)">내 코스로 가져오기</button>
           </div>
         </BaseCard>
       </div>

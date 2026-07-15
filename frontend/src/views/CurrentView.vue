@@ -137,6 +137,7 @@ function navigateToChat() {
       <div class="modal map-modal">
         <div class="modal-header">
           <h3>진행 중인 데이트 코스</h3>
+          <button class="close-x-btn" @click="showMapModal = false">&times;</button>
         </div>
         <div class="modal-map-container" style="margin-bottom: 0">
           <LeafletMap
@@ -449,6 +450,23 @@ function navigateToChat() {
   font-weight: 800;
   flex: 1;
   text-align: center;
+  padding-left: 24px;
+}
+
+.close-x-btn {
+  font-size: 24px;
+  font-weight: 300;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  line-height: 1;
+  padding: 4px 8px;
+  transition: color 0.2s;
+}
+
+.close-x-btn:hover {
+  color: var(--ink);
 }
 
 .modal-map-container {

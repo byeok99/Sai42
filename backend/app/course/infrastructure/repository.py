@@ -19,6 +19,9 @@ class DateCourseRepository:
             )
         )
 
+    async def find_course(self, course_id: str) -> DateCourse | None:
+        return await self.session.get(DateCourse, course_id)
+
     async def list_course_places(self, course_id: str) -> list[DateCoursePlace]:
         return list(
             await self.session.scalars(
@@ -46,6 +49,11 @@ class DateCourseRepository:
 
     async def add_community_post(self, post: CommunityPost) -> None:
         self.session.add(post)
+        await self.session.flush()
+
+    async def add_course(self, course: DateCourse, places: list[DateCoursePlace]) -> None:
+        self.session.add(course)
+        self.session.add_all(places)
         await self.session.flush()
 
     async def flush(self) -> None:

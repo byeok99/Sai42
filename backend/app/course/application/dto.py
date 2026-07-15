@@ -138,3 +138,18 @@ class PublishedCommunityPostDto(ApiDto):
 class CompleteDateCourseDto(ApiDto):
     completed_course: DateCourseDto
     community_post: PublishedCommunityPostDto
+
+
+class CopyCourseRequestDto(ApiDto):
+    date: date
+    start_time: time
+
+
+class CopyResultDto(ApiDto):
+    source_post_id: str
+    warnings: list[str]
+
+
+class StartCommunityCourseDto(ApiDto):
+    active_course: DateCourseDto
+    copy_result: CopyResultDto

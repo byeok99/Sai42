@@ -27,3 +27,20 @@ class CommunityPost(Base):
     published_at: Mapped[str] = mapped_column(Text, nullable=False)
     updated_at: Mapped[str] = mapped_column(Text, nullable=False)
     deleted_at: Mapped[str | None] = mapped_column(Text)
+
+
+class CommunityLike(Base):
+    __tablename__ = "community_likes"
+    __table_args__ = (
+        UniqueConstraint("profile_id", "community_post_id", name="uq_community_likes_profile_post"),
+        Index("ix_community_likes_post", "community_post_id"),
+    )
+
+    id: Mapped[str] = mapped_column(Text, primary_key=True)
+    profile_id: Mapped[str] = mapped_column(
+        Text, ForeignKey("user_profiles.id", ondelete="CASCADE"), nullable=False
+    )
+    community_post_id: Mapped[str] = mapped_column(
+        Text, ForeignKey("community_posts.id", ondelete="CASCADE"), nullable=False
+    )
+    created_at: Mapped[str] = mapped_column(Text, nullable=False)

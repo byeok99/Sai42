@@ -50,7 +50,7 @@ class CommonApiTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(health_response.headers["X-Request-Id"], request_id)
         self.assertEqual(health["data"]["database"], "UP")
         self.assertEqual(health["data"]["aiProvider"], "NOT_CONFIGURED")
-        self.assertEqual(health["data"]["weatherProvider"], "NOT_CONFIGURED")
+        self.assertEqual(health["data"]["weatherProvider"], "UP")
         self.assertEqual(health["timestamp"][-6:], "+09:00")
 
         self.assertEqual(options_response.status_code, 200)
@@ -92,6 +92,15 @@ class CommonApiTest(unittest.IsolatedAsyncioTestCase):
                 "/api/v1/date-courses/current/places/{coursePlaceId}/complete",
                 "/api/v1/date-courses/current/places/{coursePlaceId}/heart",
                 "/api/v1/date-courses/current/complete",
+                "/api/v1/weather",
+                "/api/v1/community/posts",
+                "/api/v1/community/posts/{postId}",
+                "/api/v1/community/posts/{postId}/like",
+                "/api/v1/community/posts/{postId}/start",
+                "/api/v1/rankings/masters",
+                "/api/v1/profiles/me/date-courses",
+                "/api/v1/profiles/me/date-courses/{courseId}",
+                "/api/v1/profiles/me/date-courses/{courseId}/restart",
             },
         )
         schemas = schema["components"]["schemas"]

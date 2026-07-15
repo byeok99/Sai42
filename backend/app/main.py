@@ -13,10 +13,14 @@ from app.common.presentation.exception_handlers import register_exception_handle
 from app.common.presentation.middleware import TraceIdMiddleware
 from app.common.presentation.responses import DEFAULT_ERROR_RESPONSES
 from app.common.presentation.router import router as common_router
+from app.community.presentation.router import router as community_router
 from app.config import Settings, get_settings
 from app.course.presentation.router import router as current_course_router
 from app.database import dispose_database_engine
+from app.history.presentation.router import router as history_router
 from app.place.presentation.router import router as place_router
+from app.ranking.presentation.router import router as ranking_router
+from app.weather.presentation.router import router as weather_router
 
 OPENAPI_TAGS = [
     {
@@ -34,6 +38,22 @@ OPENAPI_TAGS = [
     {
         "name": "Current",
         "description": "현재 데이트 코스 조회, 순차 진행, 장소 하트와 종료를 제공합니다.",
+    },
+    {
+        "name": "Community",
+        "description": "완료 코스 공개, 조회, 수정, 좋아요와 코스 복사를 제공합니다.",
+    },
+    {
+        "name": "Ranking",
+        "description": "공개 코스 기반 데이트 마스터 집계를 제공합니다.",
+    },
+    {
+        "name": "History",
+        "description": "본인의 완료 코스 조회와 새로운 현재 코스 재진행을 제공합니다.",
+    },
+    {
+        "name": "Weather",
+        "description": "Open-Meteo 시간별 예보와 코스 추천용 실내외 비율을 제공합니다.",
     },
 ]
 
@@ -89,6 +109,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(auth_router, prefix=resolved_settings.api_prefix)
     application.include_router(place_router, prefix=resolved_settings.api_prefix)
     application.include_router(current_course_router, prefix=resolved_settings.api_prefix)
+    application.include_router(community_router, prefix=resolved_settings.api_prefix)
+    application.include_router(ranking_router, prefix=resolved_settings.api_prefix)
+    application.include_router(history_router, prefix=resolved_settings.api_prefix)
+    application.include_router(weather_router, prefix=resolved_settings.api_prefix)
     return application
 
 

@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.auth.application.rate_limiter import AuthRateLimiter
 from app.auth.presentation.router import router as auth_router
+from app.chat.presentation.router import router as chat_router
 from app.common.presentation.dependencies import validate_optional_request_id
 from app.common.presentation.exception_handlers import register_exception_handlers
 from app.common.presentation.middleware import TraceIdMiddleware
@@ -34,6 +35,10 @@ OPENAPI_TAGS = [
     {
         "name": "Place",
         "description": "SQLite에 적재된 공공 장소 검색, 상세 및 주변 장소 조회를 제공합니다.",
+    },
+    {
+        "name": "Chat",
+        "description": "OpenAI와 SQLite 공공데이터 기반 코스 생성, 대화 수정과 확정을 제공합니다.",
     },
     {
         "name": "Current",
@@ -108,6 +113,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(common_router, prefix=resolved_settings.api_prefix)
     application.include_router(auth_router, prefix=resolved_settings.api_prefix)
     application.include_router(place_router, prefix=resolved_settings.api_prefix)
+    application.include_router(chat_router, prefix=resolved_settings.api_prefix)
     application.include_router(current_course_router, prefix=resolved_settings.api_prefix)
     application.include_router(community_router, prefix=resolved_settings.api_prefix)
     application.include_router(ranking_router, prefix=resolved_settings.api_prefix)

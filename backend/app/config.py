@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     auth_rate_limit_max_attempts: int = Field(default=10, ge=1, le=100)
     auth_rate_limit_window_seconds: int = Field(default=60, ge=1, le=3600)
     openai_api_key: SecretStr | None = None
+    openai_model: str = "gpt-5-mini"
+    openai_timeout_seconds: float = Field(default=30.0, gt=0, le=120)
+    openai_max_retries: int = Field(default=1, ge=0, le=5)
+    openai_candidate_limit: int = Field(default=60, ge=10, le=100)
     weather_api_base_url: str = "https://api.open-meteo.com/v1/forecast"
     weather_api_timeout_seconds: float = Field(default=5.0, gt=0, le=30)
 

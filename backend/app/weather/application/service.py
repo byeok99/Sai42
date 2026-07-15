@@ -33,14 +33,14 @@ class WeatherService:
                 message="날씨는 오늘부터 글피까지 조회할 수 있습니다.",
             )
         if self.provider is None:
-            return self._unavailable(target_date, district, time_slot)
+            return self.unavailable(target_date, district, time_slot)
         try:
             forecast = await self.provider.forecast(target_date, district)
             selected = [item for item in forecast.hours if item.hour in HOURS_BY_SLOT[time_slot]]
             if not selected:
                 raise WeatherProviderError("time slot unavailable")
         except WeatherProviderError:
-            return self._unavailable(target_date, district, time_slot)
+            return self.unavailable(target_date, district, time_slot)
 
         condition = self._condition(selected)
         recommendation = self._recommendation(condition)
@@ -114,7 +114,7 @@ class WeatherService:
         )
 
     @staticmethod
-    def _unavailable(
+    def unavailable(
         target_date: date, district: District, time_slot: TimeSlot
     ) -> WeatherSummaryDto:
         return WeatherSummaryDto(

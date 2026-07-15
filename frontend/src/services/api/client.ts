@@ -41,7 +41,7 @@ export class ApiClient {
     const response = await fetch(url, {
       method,
       headers: this.getHeaders(options.headers),
-      body: options.body ? JSON.stringify(options.body) : undefined,
+      ...(method !== 'GET' && options.body ? { body: JSON.stringify(options.body) } : {}),
     })
 
     const payload = (await response.json().catch(() => null)) as BaseDto<T> | ErrorResponseDto | null

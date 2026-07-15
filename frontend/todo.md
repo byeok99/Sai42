@@ -1,5 +1,31 @@
 # Frontend Todo
 
+## 현재 상태 요약 (2026-07-15)
+- Swagger/OpenAPI 기준 API endpoint 구현률: 약 85%
+- 요청/응답 DTO 정합성: 약 70%
+- 전체 프런트 API 레이어 완성도: 약 78%
+
+### 방금까지 확인된 내용
+- Swagger에서 확인된 주요 endpoint들은 대부분 프런트 서비스/리포지토리 레이어로 구현되어 있음
+- Identity / Place / Course / Community / Ranking / History 도메인별 repository/service 구조는 구성됨
+- 최근 작업으로 DTO 필드 구조를 Swagger 방향에 더 가깝게 정리했고, 수정한 파일들 기준 에디터 진단 오류는 없음
+
+### 아직 부족한 부분
+- 실제 백엔드 응답 샘플이 없어서 DTO 필드명을 1:1로 완전히 맞추지는 못한 상태
+- 인증 헤더 기반 공통 인증 유틸/스토어 연동이 아직 미완성
+- API 에러 처리, 로딩/에러/빈 상태 패턴, 화면 컴포넌트 연결이 아직 남아 있음
+- 실제 Vue 화면과 service → repository → API 흐름 연결은 다음 단계 작업
+
+### 다음 우선순위
+1. Swagger 응답 예시 기준으로 DTO 필드명과 타입을 더 엄밀하게 맞추기
+2. 인증 헤더/공통 에러 처리/로딩 상태 패턴 연결하기
+3. 실제 화면 컴포넌트와 API 레이어를 이어서 동작 확인하기
+4. 해야할것 : 스웨거 응답 response에서 json 타입 키벨류 일치하는지 key mapper같은거 추가로 해야할거있는지 확인해야함.
+5. 어디까지 스웨거 기준으로응답 json이 일치하는지 확실하게 확인해야함
+6. 페이지별 ui와 service layer 연동해야함. 
+
+- 그리고 추가로 챗봇 requset, response이거만 api 호출되면됨.
+
 ## 1. 프로젝트 기준 및 구조 정리
 - [x] 프론트엔드 개발 기준(브랜치, 작업 순서, 커밋 규칙) 최종 확인
 - [x] 현재 폴더 구조와 기존 컴포넌트/페이지 기준 정리
@@ -7,13 +33,30 @@
 - [x] UI layer / feature layer / repository layer / service layer 구조 기준 확정
 
 ## 2. API 명세 기반 데이터 계층 설계
-- [ ] API spec에서 endpoint, 요청/응답 DTO, 에러 포맷 정리
-- [ ] 공통 API client/axios 또는 fetch 기반 세팅
+- [x] API spec에서 endpoint, 요청/응답 DTO, 에러 포맷 정리
+- [x] 공통 API client/axios 또는 fetch 기반 세팅
 - [x] 타입 정의 파일 구성 (request/response/entity)
-- [ ] Repository layer 설계 및 기본 구현
-- [ ] Service layer 설계 및 비즈니스 로직 분리
-- [ ] endpoint → service → repository 흐름 검증
+- [x] Repository layer 설계 및 기본 구현
+- [x] Service layer 설계 및 비즈니스 로직 분리
+- [x] endpoint → service → repository 흐름 검증
 - [ ] 로딩, 에러, 빈 상태 처리 공통 패턴 정의
+
+### 완료된 API 도메인 구현
+- [x] Identity: 닉네임 추천, 프로필 생성, 프로필 검증, 내 프로필 조회
+- [x] Place: 장소 목록/상세/주변 장소 조회
+- [x] Chat: 채팅 세션 생성/조회/메시지 전송/확정/폐기
+- [x] Course: 현재 코스 조회, 장소 완료, 장소 하트, 데이트 종료
+- [x] Community: 게시글 목록/상세/생성/수정/삭제/좋아요/시작
+- [x] Ranking: 데이트 마스터 목록 조회
+- [x] History: 완료 코스 목록/상세/재진행
+
+### 앞으로 구현할 API 관련 작업
+- [ ] Swagger/OpenAPI 응답 스키마와 실제 DTO를 1:1로 맞추기
+- [ ] 인증 헤더 기반 공통 인증 유틸/스토어 연동
+- [ ] API 에러 처리 및 사용자 메시지 변환
+- [ ] 로딩/에러/빈 상태를 공통 composable 또는 store로 정리
+- [ ] 실제 화면 컴포넌트와 repository/service 연결
+- [ ] Pinia store 또는 composable에서 API 호출 흐름 연결
 
 ## 3. 디자인 시스템 구축
 - [x] 와이어프레임 기반으로 공통 UI 패턴 정리

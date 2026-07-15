@@ -1,4 +1,4 @@
-"""SQLAlchemy model for public TourAPI place data."""
+"""SQLAlchemy persistence model for public TourAPI place data."""
 
 from sqlalchemy import CheckConstraint, Float, Index, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column

@@ -8,7 +8,7 @@
 |---|---|---:|
 | [`functional.md`](./functional.md) | 사용자 기능, 우선순위, 공통 제품 정책 | 기능 ID 60개 |
 | [`api.md`](./api.md) | HTTP, DTO, Enum, 오류, 멱등성 | 엔드포인트 32개 |
-| [`database.md`](./database.md) | 테이블, 컬럼, 제약, FK, 트랜잭션 | 테이블 7개 |
+| [`database.md`](./database.md) | 테이블, 컬럼, 제약, FK, 트랜잭션 | 테이블 8개 |
 
 ## 구현 불변 조건
 

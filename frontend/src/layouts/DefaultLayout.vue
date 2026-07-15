@@ -42,7 +42,7 @@ const showNav = computed(() => route.name !== 'entrance' && route.name !== undef
     </div>
 
     <!-- Desktop Sidebar Guide Panel -->
-    <aside class="desktop-note">
+    <aside v-if="import.meta.env.DEV" class="desktop-note">
       <strong>사이42 웹 프레임</strong>
       <p>
         입장 → 취향 조사 → 챗봇 코스 조정 → 지도 확인 → 코스 결정 → 데이트 진행 → 후기 등록 흐름을

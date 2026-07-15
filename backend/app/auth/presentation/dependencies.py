@@ -36,3 +36,21 @@ async def get_current_profile(
         password_header=password,
         client_ip=request_client_ip(request),
     )
+
+
+async def get_optional_current_profile(
+    request: Request,
+    session: Annotated[AsyncSession, Depends(get_database_session)],
+    rate_limiter: Annotated[AuthRateLimiter, Depends(get_auth_rate_limiter)],
+    profile_id: Annotated[str | None, Header(alias="X-Profile-Id")] = None,
+    password: Annotated[str | None, Header(alias="X-User-Password")] = None,
+) -> AuthenticatedProfile | None:
+    """Allow anonymous access while validating any supplied credential pair."""
+    if profile_id is None and password is None:
+        return None
+    service = AuthService(AuthRepository(session), rate_limiter)
+    return await service.authenticate_headers(
+        profile_id_header=profile_id,
+        password_header=password,
+        client_ip=request_client_ip(request),
+    )

@@ -34,16 +34,22 @@ def _public_places() -> list[dict[str, object]]:
         connection.row_factory = sqlite3.Row
         rows = connection.execute(
             """
-            SELECT * FROM places
-            WHERE is_recommendable = 1 AND district = 'YUSEONG_GU'
-              AND content_type_id IN (12, 14, 38, 39)
+            SELECT * FROM (
+                SELECT places.*,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY content_type_id ORDER BY content_id
+                       ) AS category_order
+                FROM places
+                WHERE is_recommendable = 1 AND district = 'YUSEONG_GU'
+                  AND content_type_id IN (12, 14, 38, 39)
+            )
+            WHERE category_order <= 5
             ORDER BY content_type_id, content_id
-            LIMIT 20
             """
         ).fetchall()
     if len(rows) < 4:
         raise AssertionError("추적 DB에 테스트할 추천 가능 공공 장소가 부족합니다.")
-    return [dict(row) for row in rows]
+    return [{key: row[key] for key in row.keys() if key != "category_order"} for row in rows]
 
 
 class RecordingAiProvider:
@@ -53,9 +59,25 @@ class RecordingAiProvider:
 
     async def generate(self, request: AiCourseRequest) -> AiCoursePlan:
         self.requests.append(request)
-        selected = request.candidates[:3]
+        pool = request.candidates
         if request.current_draft is not None:
-            selected = list(reversed(request.candidates[-3:]))
+            alternatives = [candidate for candidate in pool if not candidate.is_current]
+            if len(alternatives) >= 3:
+                pool = alternatives
+        selected = []
+        for activity in request.conditions["activities"]:
+            match = next(
+                (
+                    candidate
+                    for candidate in pool
+                    if activity in candidate.activities and candidate not in selected
+                ),
+                None,
+            )
+            if match is not None:
+                selected.append(match)
+        selected.extend(candidate for candidate in pool if candidate not in selected)
+        selected = selected[:3]
         content_ids = [candidate.content_id for candidate in selected]
         if self.invalid_content_id:
             content_ids[0] = "NOT-IN-SQLITE"
@@ -72,6 +94,32 @@ class RecordingAiProvider:
                     sweet_comment="함께 천천히 둘러보세요.",
                 )
                 for content_id in content_ids
+            ],
+            warnings=[],
+        )
+
+
+class StubbornAiProvider(RecordingAiProvider):
+    """Keep the current places even when regeneration asks for a new combination."""
+
+    async def generate(self, request: AiCourseRequest) -> AiCoursePlan:
+        if request.current_draft is None:
+            return await super().generate(request)
+        self.requests.append(request)
+        current = [candidate for candidate in request.candidates if candidate.is_current]
+        return AiCoursePlan(
+            title="기존 코스 유지",
+            overall_comment="검증할 수 없는 변경은 적용하지 않습니다.",
+            assistant_message="기존 코스를 유지했어요.",
+            tags=["#대전데이트"],
+            places=[
+                AiCoursePlace(
+                    content_id=candidate.content_id,
+                    estimated_stay_minutes=60,
+                    space_type=SpaceType.INDOOR,
+                    sweet_comment="함께 둘러보세요.",
+                )
+                for candidate in current[:3]
             ],
             warnings=[],
         )
@@ -242,6 +290,72 @@ class ChatApiTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(422, too_long.status_code)
         self.assertEqual("CHAT_MESSAGE_TOO_LONG", too_long.json()["code"])
+
+    async def test_edit_passes_bounded_conversation_and_distance_context(self) -> None:
+        created = await self.client.post(
+            "/api/v1/chat/sessions", json=self._create_body(), headers=self.headers
+        )
+        session_id = created.json()["data"]["sessionId"]
+
+        first_edit = await self.client.post(
+            f"/api/v1/chat/sessions/{session_id}/messages",
+            json={"quickAction": "REGENERATE", "expectedDraftVersion": 1},
+            headers=self.headers,
+        )
+        self.assertEqual(200, first_edit.status_code, first_edit.text)
+        version = first_edit.json()["data"]["courseDraft"]["version"]
+
+        second_edit = await self.client.post(
+            f"/api/v1/chat/sessions/{session_id}/messages",
+            json={
+                "message": "방금 코스에서 식사 장소만 더 가깝게 바꿔줘.",
+                "expectedDraftVersion": version,
+            },
+            headers=self.headers,
+        )
+        self.assertEqual(200, second_edit.status_code, second_edit.text)
+
+        latest_request = self.provider.requests[-1]
+        self.assertEqual(
+            ["USER", "ASSISTANT", "USER", "ASSISTANT"],
+            [message.role for message in latest_request.conversation],
+        )
+        self.assertEqual("방금 코스에서 식사 장소만 더 가깝게 바꿔줘.", latest_request.user_request)
+        self.assertTrue(
+            all(
+                candidate.distance_to_current_course_km is not None
+                for candidate in latest_request.candidates
+            )
+        )
+        self.assertTrue(any(candidate.is_current for candidate in latest_request.candidates))
+        self.assertGreater(
+            len({candidate.category for candidate in latest_request.candidates[:8]}), 1
+        )
+
+    async def test_failed_regeneration_is_repaired_once_then_preserves_draft(self) -> None:
+        provider = StubbornAiProvider()
+        self.app.dependency_overrides[get_ai_course_provider] = lambda: provider
+        created = await self.client.post(
+            "/api/v1/chat/sessions", json=self._create_body(), headers=self.headers
+        )
+        created_data = created.json()["data"]
+        original = created_data["courseDraft"]
+
+        edited = await self.client.post(
+            f"/api/v1/chat/sessions/{created_data['sessionId']}/messages",
+            json={"quickAction": "REGENERATE", "expectedDraftVersion": 1},
+            headers=self.headers,
+        )
+        self.assertEqual(200, edited.status_code, edited.text)
+        data = edited.json()["data"]
+        self.assertFalse(data["changeSummary"]["changed"])
+        self.assertEqual(original, data["courseDraft"])
+        self.assertEqual(
+            ["요청 조건을 안전하게 반영하지 못해 기존 코스를 유지했습니다."],
+            data["changeSummary"]["warnings"],
+        )
+        self.assertEqual(3, len(provider.requests))
+        self.assertTrue(provider.requests[-1].validation_errors)
 
 
 if __name__ == "__main__":

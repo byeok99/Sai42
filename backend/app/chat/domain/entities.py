@@ -30,6 +30,18 @@ class PlaceCandidate(BaseModel):
     longitude: float
     image_url: str | None
     activities: list[str]
+    requested_activity_matches: list[str] = Field(default_factory=list)
+    is_current: bool = False
+    distance_to_current_course_km: float | None = Field(default=None, ge=0)
+
+
+class AiConversationMessage(BaseModel):
+    """A bounded prior chat turn supplied as context to the provider."""
+
+    model_config = ConfigDict(frozen=True)
+
+    role: Literal["USER", "ASSISTANT"]
+    content: str = Field(min_length=1, max_length=1000)
 
 
 class AiCoursePlace(BaseModel):
@@ -62,3 +74,6 @@ class AiCourseRequest(BaseModel):
     candidates: list[PlaceCandidate]
     user_request: str
     current_draft: dict[str, Any] | None = None
+    conversation: list[AiConversationMessage] = Field(default_factory=list)
+    edit_action: str | None = None
+    validation_errors: list[str] = Field(default_factory=list)

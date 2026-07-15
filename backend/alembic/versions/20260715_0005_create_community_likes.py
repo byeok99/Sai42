@@ -25,9 +25,7 @@ def upgrade() -> None:
         sa.Column("community_post_id", sa.Text(), nullable=False),
         sa.Column("created_at", sa.Text(), nullable=False),
         sa.ForeignKeyConstraint(["profile_id"], ["user_profiles.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(
-            ["community_post_id"], ["community_posts.id"], ondelete="CASCADE"
-        ),
+        sa.ForeignKeyConstraint(["community_post_id"], ["community_posts.id"], ondelete="CASCADE"),
         sa.UniqueConstraint(
             "profile_id", "community_post_id", name="uq_community_likes_profile_post"
         ),

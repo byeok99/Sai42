@@ -81,9 +81,7 @@ def upgrade() -> None:
         unique=True,
         sqlite_where=sa.text("status = 'ACTIVE'"),
     )
-    op.create_index(
-        "ix_date_courses_profile_status", "date_courses", ["profile_id", "status"]
-    )
+    op.create_index("ix_date_courses_profile_status", "date_courses", ["profile_id", "status"])
     op.create_table(
         "date_course_places",
         sa.Column("id", sa.Text(), primary_key=True),
@@ -129,13 +127,9 @@ def upgrade() -> None:
         sa.Column("published_at", sa.Text(), nullable=False),
         sa.Column("updated_at", sa.Text(), nullable=False),
         sa.Column("deleted_at", sa.Text()),
-        sa.CheckConstraint(
-            "status IN ('PUBLISHED', 'DELETED')", name="ck_community_posts_status"
-        ),
+        sa.CheckConstraint("status IN ('PUBLISHED', 'DELETED')", name="ck_community_posts_status"),
         sa.ForeignKeyConstraint(["date_course_id"], ["date_courses.id"], ondelete="RESTRICT"),
-        sa.ForeignKeyConstraint(
-            ["author_profile_id"], ["user_profiles.id"], ondelete="SET NULL"
-        ),
+        sa.ForeignKeyConstraint(["author_profile_id"], ["user_profiles.id"], ondelete="SET NULL"),
         sa.UniqueConstraint("date_course_id", name="uq_community_posts_date_course"),
     )
     op.create_index(

@@ -1,4 +1,4 @@
-"""Mappings shared by TourAPI imports and future Place API DTO conversion."""
+"""Place domain mappings shared by imports and future DTO conversion."""
 
 RECOMMENDABLE_CONTENT_TYPE_IDS = frozenset({12, 14, 25, 28, 32, 38, 39})
 EXCLUDED_CONTENT_TYPE_IDS = frozenset({15})

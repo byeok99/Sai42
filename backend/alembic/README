@@ -1,3 +1,3 @@
-Generic asynchronous Alembic environment for Sai42.
+Asynchronous Alembic environment for Sai42.
 
-No database model or migration revision is defined during initial setup.
+Run `python -m alembic upgrade head` before importing TourAPI place data.

@@ -4,8 +4,9 @@
 
 현재 저장소에는 Vue 3와 FastAPI 기반 모노레포 개발환경, 한국관광공사 TourAPI 장소 데이터를
 저장하기 위한 SQLite 모델·마이그레이션·적재 도구, Backend 공통 응답·예외, Health·Meta
-Options API와 익명 프로필 인증 API가 구성되어 있습니다. Place 등 나머지 도메인 비즈니스 API,
-외부 서비스 연동, 페이지 UI는 아직 구현하지 않았습니다.
+Options API, 익명 프로필 인증 API와 SQLite 공공데이터 기반 Place 목록·상세·주변 조회 API가
+구성되어 있습니다. 그 외 도메인 비즈니스 API, 외부 서비스 연동, 페이지 UI는 아직 구현하지
+않았습니다.
 
 ## 기술 스택
 

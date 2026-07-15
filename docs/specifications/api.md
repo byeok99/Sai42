@@ -275,6 +275,7 @@ Idempotency-Key: optional-uuid
 ```
 
 장소의 API 식별자와 path parameter는 모두 TourAPI `contentId` 문자열을 사용한다. 별도 장소 UUID는 만들지 않는다.
+DB에서 아직 분류되지 않은 `district`, `indoorOutdoor`와 존재하지 않는 `imageUrl`은 `null`로 반환하며 임의 값으로 보완하지 않는다.
 
 ### 6.2 `CourseConditionDto`
 

@@ -6,7 +6,8 @@
 저장하기 위한 SQLite 모델·마이그레이션·적재 도구, Backend 공통 응답·예외, Health·Meta
 Options API, 익명 프로필 인증 API와 SQLite 공공데이터 기반 Place 목록·상세·주변 조회 API가
 구성되어 있습니다. 현재 데이트 코스 조회·순차 장소 완료·장소 하트·데이트 종료와 자동 공개
-API도 제공합니다. AI 코스 생성, 날씨와 그 외 도메인 API, 페이지 UI는 아직 구현하지 않았습니다.
+API, Open-Meteo 날씨, 커뮤니티·랭킹·추억 API도 제공합니다. AI Chat/CourseDraft API와 페이지 UI는
+아직 구현하지 않았습니다.
 
 ## 기술 스택
 

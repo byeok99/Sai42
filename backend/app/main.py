@@ -6,6 +6,8 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.auth.application.rate_limiter import AuthRateLimiter
+from app.auth.presentation.router import router as auth_router
 from app.common.presentation.dependencies import validate_optional_request_id
 from app.common.presentation.exception_handlers import register_exception_handlers
 from app.common.presentation.middleware import TraceIdMiddleware
@@ -18,7 +20,11 @@ OPENAPI_TAGS = [
     {
         "name": "Common",
         "description": "서버 상태와 API 공통 선택 옵션을 제공합니다.",
-    }
+    },
+    {
+        "name": "Identity",
+        "description": "익명 프로필 등록, 검증과 요청별 헤더 인증을 제공합니다.",
+    },
 ]
 
 
@@ -48,6 +54,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
     )
     application.state.settings = resolved_settings
+    application.state.auth_rate_limiter = AuthRateLimiter(
+        max_attempts=resolved_settings.auth_rate_limit_max_attempts,
+        window_seconds=resolved_settings.auth_rate_limit_window_seconds,
+    )
 
     application.add_middleware(TraceIdMiddleware)
     application.add_middleware(
@@ -66,6 +76,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     register_exception_handlers(application)
     application.include_router(common_router, prefix=resolved_settings.api_prefix)
+    application.include_router(auth_router, prefix=resolved_settings.api_prefix)
     return application
 
 

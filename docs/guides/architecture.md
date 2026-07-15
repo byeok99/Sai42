@@ -8,7 +8,7 @@
 Browser
   -> frontend/ (Vue 3 + Vite)
   -> backend/  (FastAPI)
-  -> SQLite    (향후 Backend에서 비동기 접근)
+  -> SQLite    (Backend에서 비동기 접근)
 ```
 
 ## Frontend
@@ -34,9 +34,11 @@ app/<domain>/
 않습니다. 최상위 `main.py`, `config.py`, `database.py`, `models.py`는 애플리케이션 조립과 공통
 런타임 설정을 담당하므로 도메인 밖에 유지합니다.
 
-현재 `common`에는 공통 응답·예외·요청 추적과 Health·Meta Options API가 있고, `place`에는
-공공데이터 분류 규칙과 `places` 영속성 모델이 있습니다. Place API를 포함한 실제 비즈니스
-API는 아직 구현하지 않습니다.
+현재 `common`에는 공통 응답·예외·요청 추적과 Health·Meta Options API가 있고, `auth`에는
+익명 프로필 등록·검증·헤더 인증과 프로세스 단위 요청 제한이 있습니다. 닉네임 추천은
+`places`에 저장된 추천 가능 공공 장소 이름을 사용합니다. `place`에는 공공데이터 분류 규칙과
+`places` 영속성 모델이 있으며 Place API를 포함한 나머지 비즈니스 API는 아직 구현하지
+않습니다.
 
 ## 데이터와 외부 서비스
 

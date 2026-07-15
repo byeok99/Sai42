@@ -1,6 +1,8 @@
 """OpenAI Responses API adapter for constrained course planning."""
 
 import json
+import logging
+from time import perf_counter
 from typing import TypeVar
 
 from openai import (
@@ -87,6 +89,7 @@ CHAT_INSTRUCTIONS = f"""
 """.strip()
 
 ResponseModel = TypeVar("ResponseModel", bound=BaseModel)
+logger = logging.getLogger("uvicorn.error")
 
 
 class OpenAiCourseProvider:
@@ -99,9 +102,14 @@ class OpenAiCourseProvider:
         model: str,
         timeout_seconds: float,
         max_retries: int,
+        reasoning_effort: str = "low",
+        prompt_cache_key: str = "sai42-chat-v1",
         client: AsyncOpenAI | None = None,
     ) -> None:
         self.model = model
+        self.reasoning_effort = reasoning_effort
+        self.prompt_cache_key = prompt_cache_key
+        self._owns_client = client is None
         self.client = client or AsyncOpenAI(
             api_key=api_key,
             timeout=timeout_seconds,
@@ -109,21 +117,40 @@ class OpenAiCourseProvider:
         )
 
     async def generate(self, request: AiCourseRequest) -> AiCoursePlan:
-        return await self._parse(request, instructions=INITIAL_INSTRUCTIONS, model=AiCoursePlan)
+        return await self._parse(
+            request,
+            operation="course_generation",
+            instructions=INITIAL_INSTRUCTIONS,
+            model=AiCoursePlan,
+        )
 
     async def respond(self, request: AiCourseRequest) -> AiChatTurn:
-        return await self._parse(request, instructions=CHAT_INSTRUCTIONS, model=AiChatTurn)
+        return await self._parse(
+            request,
+            operation="chat_turn",
+            instructions=CHAT_INSTRUCTIONS,
+            model=AiChatTurn,
+        )
+
+    async def aclose(self) -> None:
+        """Close the app-owned OpenAI transport during FastAPI shutdown."""
+        if self._owns_client:
+            await self.client.close()
 
     async def _parse(
         self,
         request: AiCourseRequest,
         *,
+        operation: str,
         instructions: str,
         model: type[ResponseModel],
     ) -> ResponseModel:
         payload = {
             "conditions": request.conditions,
             "weather": request.weather,
+            "candidates": [
+                candidate.model_dump(mode="json", by_alias=True) for candidate in request.candidates
+            ],
             "userRequest": request.user_request,
             "currentDraft": request.current_draft,
             "conversation": [
@@ -132,27 +159,101 @@ class OpenAiCourseProvider:
             "memory": request.memory.model_dump(mode="json", by_alias=True),
             "editAction": request.edit_action,
             "validationErrors": request.validation_errors,
-            "candidates": [
-                candidate.model_dump(mode="json", by_alias=True) for candidate in request.candidates
-            ],
         }
+        serialized_payload = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+        started_at = perf_counter()
+        cache_key = f"{operation}:{self.prompt_cache_key}"[:64]
         try:
             response = await self.client.responses.parse(
                 model=self.model,
                 instructions=instructions,
-                input=json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+                input=serialized_payload,
                 text_format=model,
+                reasoning={"effort": self.reasoning_effort},
+                prompt_cache_key=cache_key,
                 store=False,
             )
         except (APITimeoutError, APIConnectionError, RateLimitError) as exc:
+            self._log_failure(operation, started_at, exc)
             raise AiCourseProviderUnavailable("OpenAI provider unavailable") from exc
         except APIStatusError as exc:
+            self._log_failure(operation, started_at, exc)
             if exc.status_code == 429 or exc.status_code >= 500:
                 raise AiCourseProviderUnavailable("OpenAI provider unavailable") from exc
             raise AiCourseProviderError("OpenAI provider rejected request") from exc
         except Exception as exc:
+            self._log_failure(operation, started_at, exc)
             raise AiCourseProviderError("OpenAI provider response invalid") from exc
 
         if response.output_parsed is None:
+            logger.warning(
+                "openai_call_invalid operation=%s model=%s elapsed_ms=%.1f reason=no_output",
+                operation,
+                self.model,
+                self._elapsed_ms(started_at),
+            )
             raise AiCourseProviderError("OpenAI provider returned no structured output")
+        self._log_success(
+            response,
+            operation=operation,
+            started_at=started_at,
+            payload_characters=len(serialized_payload),
+            candidate_count=len(request.candidates),
+            is_repair=bool(request.validation_errors),
+        )
         return response.output_parsed
+
+    def _log_success(
+        self,
+        response: object,
+        *,
+        operation: str,
+        started_at: float,
+        payload_characters: int,
+        candidate_count: int,
+        is_repair: bool,
+    ) -> None:
+        usage = self._field(response, "usage")
+        input_details = self._field(usage, "input_tokens_details")
+        output_details = self._field(usage, "output_tokens_details")
+        logger.info(
+            "openai_call_completed operation=%s model=%s elapsed_ms=%.1f "
+            "reasoning_effort=%s candidate_count=%d payload_characters=%d repair=%s "
+            "input_tokens=%s "
+            "cached_input_tokens=%s output_tokens=%s reasoning_tokens=%s total_tokens=%s "
+            "request_id=%s",
+            operation,
+            self.model,
+            self._elapsed_ms(started_at),
+            self.reasoning_effort,
+            candidate_count,
+            payload_characters,
+            is_repair,
+            self._field(usage, "input_tokens"),
+            self._field(input_details, "cached_tokens"),
+            self._field(usage, "output_tokens"),
+            self._field(output_details, "reasoning_tokens"),
+            self._field(usage, "total_tokens"),
+            self._field(response, "_request_id"),
+        )
+
+    def _log_failure(self, operation: str, started_at: float, exception: Exception) -> None:
+        logger.warning(
+            "openai_call_failed operation=%s model=%s reasoning_effort=%s elapsed_ms=%.1f "
+            "exception_type=%s",
+            operation,
+            self.model,
+            self.reasoning_effort,
+            self._elapsed_ms(started_at),
+            type(exception).__name__,
+        )
+
+    @staticmethod
+    def _field(value: object, name: str) -> object | None:
+        if isinstance(value, dict):
+            return value.get(name)
+        return getattr(value, name, None)
+
+    @staticmethod
+    def _elapsed_ms(started_at: float) -> float:
+        return (perf_counter() - started_at) * 1000

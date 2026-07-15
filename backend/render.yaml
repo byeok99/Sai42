@@ -32,6 +32,10 @@ services:
       - key: OPENAI_TIMEOUT_SECONDS
         value: "30"
       - key: OPENAI_MAX_RETRIES
-        value: "1"
+        value: "0"
       - key: OPENAI_CANDIDATE_LIMIT
-        value: "60"
+        value: "24"
+      - key: OPENAI_REASONING_EFFORT
+        value: low
+      - key: OPENAI_PROMPT_CACHE_KEY
+        value: sai42-chat-v1

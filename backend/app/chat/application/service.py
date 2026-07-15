@@ -1,8 +1,11 @@
 """Chat session, AI course draft, revision, confirmation, and discard use cases."""
 
+import asyncio
 import json
+import logging
 from datetime import datetime, timedelta
 from math import floor
+from time import perf_counter
 from typing import NoReturn
 from uuid import uuid4
 
@@ -25,6 +28,8 @@ from app.chat.application.quality import (
     CoursePlanQualityPolicy,
     haversine_km,
     public_response_violations,
+    sanitize_chat_turn,
+    sanitize_course_plan,
 )
 from app.chat.application.travel import estimate_travel_minutes
 from app.chat.domain.content_filter import contains_prohibited_language
@@ -82,6 +87,7 @@ TRANSITION_BUFFER_MINUTES = {
 
 MAX_CONVERSATION_MESSAGES = 8
 MAX_CONVERSATION_CHARACTERS = 4000
+logger = logging.getLogger("uvicorn.error")
 QUALITY_FALLBACK_WARNING = "요청 조건을 안전하게 반영하지 못해 기존 코스를 유지했습니다."
 
 
@@ -107,13 +113,18 @@ class ChatService:
         profile: AuthenticatedProfile,
         request: CreateChatSessionRequestDto,
     ) -> CreateChatSessionDto:
+        started_at = perf_counter()
         if request.initial_message:
             self._validate_user_input(request.initial_message)
         if await self.course_repository.find_active_course(profile.id):
             self._raise_active_course_exists()
         self._validate_start(request.date, request.start_time)
-        weather = await self._weather(request)
-        places = await self.repository.list_recommendable_places(request.district)
+        context_started_at = perf_counter()
+        weather, places = await asyncio.gather(
+            self._weather(request),
+            self.repository.list_recommendable_places(request.district),
+        )
+        context_elapsed_ms = (perf_counter() - context_started_at) * 1000
         candidates = self._rank_candidates(
             places,
             activities=request.activities,
@@ -128,6 +139,7 @@ class ChatService:
             )
         conditions = request.conditions()
         user_request = request.initial_message or "입력한 조건으로 데이트 코스를 만들어줘."
+        generation_started_at = perf_counter()
         plan, violations = await self._generate(
             conditions=conditions.model_dump(mode="json", by_alias=True),
             weather=weather.model_dump(mode="json", by_alias=True),
@@ -137,6 +149,7 @@ class ChatService:
             conversation=[],
             action=None,
         )
+        generation_elapsed_ms = (perf_counter() - generation_started_at) * 1000
         if violations:
             self._raise_provider_error()
         draft = self._build_draft(
@@ -171,6 +184,15 @@ class ChatService:
         )
         await self.repository.add_session(chat_session)
         await self.repository.commit()
+        logger.info(
+            "chat_session_create_completed total_ms=%.1f context_ms=%.1f generation_ms=%.1f "
+            "candidate_count=%d selected_place_count=%d",
+            (perf_counter() - started_at) * 1000,
+            context_elapsed_ms,
+            generation_elapsed_ms,
+            len(candidates),
+            len(plan.places),
+        )
         return CreateChatSessionDto(
             session_id=session_id,
             status=ChatSessionStatus.ACTIVE,
@@ -188,6 +210,7 @@ class ChatService:
         session_id: str,
         request: SendChatMessageRequestDto,
     ) -> SendChatMessageDto:
+        started_at = perf_counter()
         self._validate_edit_request(request)
         chat_session = await self._owned_active_session(profile.id, session_id)
         if chat_session.draft_version != request.expected_draft_version:
@@ -195,6 +218,7 @@ class ChatService:
         current = self._required_draft(chat_session)
         memory = self._memory(chat_session)
         conditions = current.conditions
+        context_started_at = perf_counter()
         places = await self.repository.list_recommendable_places(conditions.district)
         candidates = self._rank_candidates(
             places,
@@ -202,11 +226,13 @@ class ChatService:
             current_draft=current,
             action=request.quick_action,
         )
+        context_elapsed_ms = (perf_counter() - context_started_at) * 1000
         user_content = (
             request.message
             if request.message is not None
             else QUICK_ACTION_MESSAGES[request.quick_action]
         )
+        generation_started_at = perf_counter()
         turn, violations = await self._generate_turn(
             conditions=conditions.model_dump(mode="json", by_alias=True),
             weather=(
@@ -219,6 +245,7 @@ class ChatService:
             memory=memory,
             action=request.quick_action,
         )
+        generation_elapsed_ms = (perf_counter() - generation_started_at) * 1000
         if violations:
             proposed = current
             changed = False
@@ -263,6 +290,17 @@ class ChatService:
             chat_session.draft_version = proposed.version
             chat_session.draft_json = self._json(proposed.model_dump(mode="json", by_alias=True))
         await self.repository.commit()
+        logger.info(
+            "chat_message_completed total_ms=%.1f context_ms=%.1f generation_ms=%.1f "
+            "candidate_count=%d intent=%s changed=%s fallback=%s",
+            (perf_counter() - started_at) * 1000,
+            context_elapsed_ms,
+            generation_elapsed_ms,
+            len(candidates),
+            turn.intent.value,
+            changed,
+            bool(violations),
+        )
         return SendChatMessageDto(
             user_message=user_message,
             assistant_message=assistant_message,
@@ -376,15 +414,17 @@ class ChatService:
         typed_current = (
             CourseDraftDto.model_validate(current_draft) if current_draft is not None else None
         )
-        plan = await self._request_plan(
-            conditions=conditions,
-            weather=weather,
-            candidates=candidates,
-            user_request=user_request,
-            current_draft=current_draft,
-            conversation=conversation,
-            action=action,
-            validation_errors=[],
+        plan = sanitize_course_plan(
+            await self._request_plan(
+                conditions=conditions,
+                weather=weather,
+                candidates=candidates,
+                user_request=user_request,
+                current_draft=current_draft,
+                conversation=conversation,
+                action=action,
+                validation_errors=[],
+            )
         )
         violations = self._plan_violations(
             plan,
@@ -396,15 +436,18 @@ class ChatService:
         if not violations:
             return plan, []
 
-        repaired = await self._request_plan(
-            conditions=conditions,
-            weather=weather,
-            candidates=candidates,
-            user_request=user_request,
-            current_draft=current_draft,
-            conversation=conversation,
-            action=action,
-            validation_errors=violations,
+        logger.info("chat_plan_repair_started violation_count=%d", len(violations))
+        repaired = sanitize_course_plan(
+            await self._request_plan(
+                conditions=conditions,
+                weather=weather,
+                candidates=candidates,
+                user_request=user_request,
+                current_draft=current_draft,
+                conversation=conversation,
+                action=action,
+                validation_errors=violations,
+            )
         )
         remaining = self._plan_violations(
             repaired,
@@ -412,6 +455,10 @@ class ChatService:
             candidates=candidates,
             current_draft=typed_current,
             action=action,
+        )
+        logger.info(
+            "chat_plan_repair_completed remaining_violation_count=%d",
+            len(remaining),
         )
         return repaired, remaining
 
@@ -431,16 +478,23 @@ class ChatService:
 
         typed_conditions = CourseConditionDto.model_validate(conditions)
         typed_current = CourseDraftDto.model_validate(current_draft)
-        turn = await self._request_turn(
-            conditions=conditions,
-            weather=weather,
+        turn = self._normalize_provider_turn(
+            sanitize_chat_turn(
+                await self._request_turn(
+                    conditions=conditions,
+                    weather=weather,
+                    candidates=candidates,
+                    user_request=user_request,
+                    current_draft=current_draft,
+                    conversation=conversation,
+                    memory=memory,
+                    action=action,
+                    validation_errors=[],
+                )
+            ),
             candidates=candidates,
-            user_request=user_request,
-            current_draft=current_draft,
-            conversation=conversation,
-            memory=memory,
-            action=action,
-            validation_errors=[],
+            current_draft=typed_current,
+            current_memory=memory,
         )
         violations = self._turn_violations(
             turn,
@@ -453,16 +507,28 @@ class ChatService:
         if not violations:
             return turn, []
 
-        repaired = await self._request_turn(
-            conditions=conditions,
-            weather=weather,
+        logger.info(
+            "chat_turn_repair_started intent=%s violation_count=%d",
+            turn.intent.value,
+            len(violations),
+        )
+        repaired = self._normalize_provider_turn(
+            sanitize_chat_turn(
+                await self._request_turn(
+                    conditions=conditions,
+                    weather=weather,
+                    candidates=candidates,
+                    user_request=user_request,
+                    current_draft=current_draft,
+                    conversation=conversation,
+                    memory=memory,
+                    action=action,
+                    validation_errors=violations,
+                )
+            ),
             candidates=candidates,
-            user_request=user_request,
-            current_draft=current_draft,
-            conversation=conversation,
-            memory=memory,
-            action=action,
-            validation_errors=violations,
+            current_draft=typed_current,
+            current_memory=memory,
         )
         remaining = self._turn_violations(
             repaired,
@@ -472,6 +538,11 @@ class ChatService:
             current_memory=memory,
             action=action,
             expected_intent=turn.intent,
+        )
+        logger.info(
+            "chat_turn_repair_completed intent=%s remaining_violation_count=%d",
+            turn.intent.value,
+            len(remaining),
         )
         return repaired, remaining
 
@@ -628,6 +699,49 @@ class ChatService:
         if current_memory.summary and not turn.memory.summary:
             violations.append("기존 memory의 대화 요약을 유지하면서 최신 요청을 반영하세요.")
         return violations
+
+    @staticmethod
+    def _normalize_provider_turn(
+        turn: AiChatTurn,
+        *,
+        candidates: list[PlaceCandidate],
+        current_draft: CourseDraftDto,
+        current_memory: AiConversationMemory,
+    ) -> AiChatTurn:
+        """Repair bounded memory bookkeeping locally instead of spending another LLM call."""
+
+        allowed_ids = {candidate.content_id for candidate in candidates}
+        allowed_ids.update(
+            place.place.content_id
+            for place in current_draft.places
+            if place.place.content_id is not None
+        )
+
+        def unique_allowed(values: list[str]) -> list[str]:
+            return list(
+                dict.fromkeys(
+                    value.strip()
+                    for value in values
+                    if value.strip() and value.strip() in allowed_ids
+                )
+            )
+
+        must_keep_ids = unique_allowed(turn.memory.must_keep_content_ids)
+        must_keep_id_set = set(must_keep_ids)
+        excluded_ids = [
+            content_id
+            for content_id in unique_allowed(turn.memory.excluded_content_ids)
+            if content_id not in must_keep_id_set
+        ]
+        summary = turn.memory.summary.strip() or current_memory.summary.strip()
+        normalized_memory = turn.memory.model_copy(
+            update={
+                "summary": summary,
+                "must_keep_content_ids": must_keep_ids,
+                "excluded_content_ids": excluded_ids,
+            }
+        )
+        return turn.model_copy(update={"memory": normalized_memory})
 
     @staticmethod
     def _course_visible_texts(course: AiCourseContent) -> list[str]:

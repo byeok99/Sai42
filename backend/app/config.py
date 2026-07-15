@@ -1,6 +1,7 @@
 """Application settings loaded from environment variables."""
 
 from functools import lru_cache
+from typing import Literal
 
 from fastapi import Request
 from pydantic import Field, SecretStr, field_validator
@@ -29,8 +30,10 @@ class Settings(BaseSettings):
     openai_api_key: SecretStr | None = None
     openai_model: str = "gpt-5-mini"
     openai_timeout_seconds: float = Field(default=30.0, gt=0, le=120)
-    openai_max_retries: int = Field(default=1, ge=0, le=5)
-    openai_candidate_limit: int = Field(default=60, ge=10, le=100)
+    openai_max_retries: int = Field(default=0, ge=0, le=5)
+    openai_candidate_limit: int = Field(default=24, ge=10, le=100)
+    openai_reasoning_effort: Literal["minimal", "low", "medium", "high"] = "low"
+    openai_prompt_cache_key: str = Field(default="sai42-chat-v1", min_length=1, max_length=64)
     weather_api_base_url: str = "https://api.open-meteo.com/v1/forecast"
     weather_api_timeout_seconds: float = Field(default=5.0, gt=0, le=30)
 

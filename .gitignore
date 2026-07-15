@@ -23,6 +23,9 @@ __pycache__/
 *.sqlite
 *.sqlite3
 
+# Render deployment snapshot (public/educational data only)
+!backend/data/sai42.db
+
 # Editors and operating systems
 .idea/
 .vscode/

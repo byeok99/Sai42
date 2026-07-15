@@ -1,7 +1,9 @@
 """Contract tests for common envelopes, tracing, errors, and OpenAPI."""
 
 import unittest
+from types import SimpleNamespace
 from typing import Annotated
+from unittest.mock import AsyncMock
 from uuid import UUID, uuid4
 
 import httpx
@@ -26,6 +28,20 @@ class CommonApiTest(unittest.IsolatedAsyncioTestCase):
     async def _client(self, app):
         transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
         return httpx.AsyncClient(transport=transport, base_url="http://testserver")
+
+    async def test_lifespan_closes_app_owned_provider_clients(self) -> None:
+        app = create_app(Settings())
+        ai_provider = SimpleNamespace(aclose=AsyncMock())
+        weather_provider = SimpleNamespace(aclose=AsyncMock())
+
+        async with app.router.lifespan_context(app):
+            app.state.ai_course_provider = ai_provider
+            app.state.weather_provider = weather_provider
+
+        ai_provider.aclose.assert_awaited_once()
+        weather_provider.aclose.assert_awaited_once()
+        self.assertIsNone(app.state.ai_course_provider)
+        self.assertIsNone(app.state.weather_provider)
 
     async def test_health_and_options_follow_the_common_contract(self) -> None:
         app = create_app(Settings(openai_api_key=None))

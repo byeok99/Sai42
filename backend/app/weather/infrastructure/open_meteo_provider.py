@@ -1,6 +1,8 @@
 """Open-Meteo keyless hourly forecast adapter."""
 
+import logging
 from datetime import date, datetime
+from time import perf_counter
 from typing import Any
 
 import httpx
@@ -17,6 +19,7 @@ DISTRICT_COORDINATES = {
     District.DAEDEOK_GU: (36.346, 127.415),
     District.ANY: (36.350, 127.385),
 }
+logger = logging.getLogger("uvicorn.error")
 
 
 class OpenMeteoWeatherProvider:
@@ -29,9 +32,16 @@ class OpenMeteoWeatherProvider:
     ) -> None:
         self.base_url = base_url
         self.timeout_seconds = timeout_seconds
-        self.client = client
+        self._owns_client = client is None
+        self.client = client or httpx.AsyncClient(timeout=timeout_seconds)
+
+    async def aclose(self) -> None:
+        """Close the app-owned HTTP connection pool during FastAPI shutdown."""
+        if self._owns_client:
+            await self.client.aclose()
 
     async def forecast(self, target_date: date, district: District) -> WeatherForecast:
+        started_at = perf_counter()
         latitude, longitude = DISTRICT_COORDINATES[district]
         params = {
             "latitude": latitude,
@@ -42,14 +52,23 @@ class OpenMeteoWeatherProvider:
             "end_date": target_date.isoformat(),
         }
         try:
-            if self.client is not None:
-                response = await self.client.get(self.base_url, params=params)
-            else:
-                async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
-                    response = await client.get(self.base_url, params=params)
+            response = await self.client.get(self.base_url, params=params)
             response.raise_for_status()
-            return self._parse(response.json())
+            forecast = self._parse(response.json())
+            logger.info(
+                "weather_call_completed elapsed_ms=%.1f status_code=%d district=%s",
+                (perf_counter() - started_at) * 1000,
+                response.status_code,
+                district.value,
+            )
+            return forecast
         except (httpx.HTTPError, KeyError, TypeError, ValueError) as exception:
+            logger.warning(
+                "weather_call_failed elapsed_ms=%.1f district=%s exception_type=%s",
+                (perf_counter() - started_at) * 1000,
+                district.value,
+                type(exception).__name__,
+            )
             raise WeatherProviderError(type(exception).__name__) from exception
 
     @staticmethod

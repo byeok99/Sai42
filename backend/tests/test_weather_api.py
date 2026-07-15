@@ -1,7 +1,10 @@
 """Weather API and Open-Meteo payload contract tests."""
 
+import asyncio
 import unittest
 from datetime import timedelta
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import httpx
 
@@ -14,6 +17,26 @@ from app.weather.presentation.dependencies import get_weather_provider
 
 
 class WeatherApiTest(unittest.IsolatedAsyncioTestCase):
+    async def test_dependency_reuses_one_app_owned_http_client(self) -> None:
+        state = SimpleNamespace(
+            weather_provider=None,
+            weather_provider_lock=asyncio.Lock(),
+        )
+        request = SimpleNamespace(app=SimpleNamespace(state=state))
+        settings = Settings()
+        shared_provider = SimpleNamespace()
+
+        with patch(
+            "app.weather.presentation.dependencies.OpenMeteoWeatherProvider",
+            return_value=shared_provider,
+        ) as factory:
+            first = await get_weather_provider(request, settings)  # type: ignore[arg-type]
+            second = await get_weather_provider(request, settings)  # type: ignore[arg-type]
+
+        self.assertIs(shared_provider, first)
+        self.assertIs(first, second)
+        factory.assert_called_once()
+
     async def test_open_meteo_forecast_is_normalized_for_the_requested_time_slot(self) -> None:
         target = now_seoul().date()
 

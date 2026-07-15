@@ -185,7 +185,7 @@ class StubbornAiProvider(RecordingAiProvider):
 
 
 class LeakyOnceAiProvider(RecordingAiProvider):
-    """Expose an internal term once so the application-level repair can be verified."""
+    """Expose an internal term so deterministic response sanitizing can be verified."""
 
     async def generate(self, request: AiCourseRequest) -> AiCoursePlan:
         self.requests.append(request)
@@ -196,7 +196,7 @@ class LeakyOnceAiProvider(RecordingAiProvider):
 
 
 class IntentChangingRepairProvider(RecordingAiProvider):
-    """Try to turn a casual answer repair into an unrelated course edit."""
+    """Would change intent if an avoidable wording-only repair were requested."""
 
     async def respond(self, request: AiCourseRequest) -> AiChatTurn:
         self.requests.append(request)
@@ -502,8 +502,8 @@ class ChatApiTest(unittest.IsolatedAsyncioTestCase):
         assistant = created.json()["data"]["assistantMessage"]["content"]
         self.assertNotIn("DB", assistant)
         self.assertNotIn("ANY", assistant)
-        self.assertEqual(2, len(provider.requests))
-        self.assertTrue(provider.requests[-1].validation_errors)
+        self.assertEqual(1, len(provider.requests))
+        self.assertFalse(provider.requests[-1].validation_errors)
 
     async def test_response_repair_cannot_change_casual_talk_into_course_edit(self) -> None:
         provider = IntentChangingRepairProvider()
@@ -522,7 +522,9 @@ class ChatApiTest(unittest.IsolatedAsyncioTestCase):
         data = response.json()["data"]
         self.assertFalse(data["changeSummary"]["changed"])
         self.assertEqual(original, data["courseDraft"])
-        self.assertEqual(QUALITY_FALLBACK_WARNING, data["assistantMessage"]["content"])
+        self.assertNotIn("DB", data["assistantMessage"]["content"])
+        self.assertNotEqual(QUALITY_FALLBACK_WARNING, data["assistantMessage"]["content"])
+        self.assertEqual(2, len(provider.requests))
 
     async def test_discard_returns_the_documented_null_payload(self) -> None:
         created = await self.client.post(

@@ -1,5 +1,7 @@
 """FastAPI application bootstrap."""
 
+import asyncio
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -62,13 +64,30 @@ OPENAPI_TAGS = [
         "description": "Open-Meteo 시간별 예보와 코스 추천용 실내외 비율을 제공합니다.",
     },
 ]
+logger = logging.getLogger("uvicorn.error")
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-    """Release database resources on graceful shutdown."""
-    yield
-    await dispose_database_engine()
+async def lifespan(application: FastAPI) -> AsyncIterator[None]:
+    """Release shared provider clients and database resources on graceful shutdown."""
+    try:
+        yield
+    finally:
+        for attribute_name in ("ai_course_provider", "weather_provider"):
+            resource = getattr(application.state, attribute_name, None)
+            if resource is None:
+                continue
+            try:
+                await resource.aclose()
+            except Exception as exception:
+                logger.warning(
+                    "provider_close_failed resource=%s exception_type=%s",
+                    attribute_name,
+                    type(exception).__name__,
+                )
+            finally:
+                setattr(application.state, attribute_name, None)
+        await dispose_database_engine()
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -90,6 +109,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
     )
     application.state.settings = resolved_settings
+    application.state.ai_course_provider = None
+    application.state.ai_course_provider_lock = asyncio.Lock()
+    application.state.weather_provider = None
+    application.state.weather_provider_lock = asyncio.Lock()
     application.state.auth_rate_limiter = AuthRateLimiter(
         max_attempts=resolved_settings.auth_rate_limit_max_attempts,
         window_seconds=resolved_settings.auth_rate_limit_window_seconds,

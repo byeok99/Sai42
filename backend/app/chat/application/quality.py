@@ -4,8 +4,8 @@ import re
 from math import asin, cos, radians, sin, sqrt
 
 from app.chat.application.dto import CourseDraftDto
-from app.chat.domain.entities import AiCourseContent, PlaceCandidate
-from app.chat.domain.enums import CourseEditAction
+from app.chat.domain.entities import AiChatTurn, AiCourseContent, AiCoursePlan, PlaceCandidate
+from app.chat.domain.enums import ChatTurnIntent, CourseEditAction
 from app.common.domain.enums import SpaceType
 from app.course.application.dto import CourseConditionDto
 
@@ -52,12 +52,99 @@ def route_distance_km(coordinates: list[tuple[float, float]]) -> float:
 def public_response_violations(texts: list[str]) -> list[str]:
     """Reject service internals and enum-like tokens from user-visible model text."""
 
-    if any(pattern.search(text) for pattern in INTERNAL_RESPONSE_PATTERNS for text in texts):
+    if any(_contains_internal_response_term(text) for text in texts):
         return [
             "사용자에게 데이터 저장 방식, 선택 목록, 식별자, 영문 enum 또는 내부 검증 용어를 "
             "노출하지 말고 자연스러운 서비스 문장으로 다시 작성하세요."
         ]
     return []
+
+
+def sanitize_course_content(course: AiCourseContent) -> AiCourseContent:
+    """Replace only unsafe user-visible wording without regenerating a valid course."""
+
+    tags = [tag for tag in course.tags if not _contains_internal_response_term(tag)]
+    return course.model_copy(
+        update={
+            "title": _safe_text(course.title, "함께 즐기는 데이트 코스"),
+            "overall_comment": _safe_text(
+                course.overall_comment,
+                "요청한 분위기와 활동을 고려해 자연스럽게 이어지는 코스로 구성했어요.",
+            ),
+            "tags": tags or ["데이트"],
+            "places": [
+                place.model_copy(
+                    update={
+                        "sweet_comment": _safe_text(
+                            place.sweet_comment,
+                            "두 분의 시간을 편안하게 이어가기 좋은 장소예요.",
+                        )
+                    }
+                )
+                for place in course.places
+            ],
+        }
+    )
+
+
+def sanitize_course_plan(plan: AiCoursePlan) -> AiCoursePlan:
+    cleaned_course = sanitize_course_content(plan)
+    return plan.model_copy(
+        update={
+            "title": cleaned_course.title,
+            "overall_comment": cleaned_course.overall_comment,
+            "tags": cleaned_course.tags,
+            "places": cleaned_course.places,
+            "assistant_message": _safe_text(
+                plan.assistant_message,
+                "요청한 조건을 반영해 데이트 코스를 준비했어요.",
+            ),
+            "warnings": [
+                warning
+                for warning in plan.warnings
+                if not _contains_internal_response_term(warning)
+            ],
+        }
+    )
+
+
+def sanitize_chat_turn(turn: AiChatTurn) -> AiChatTurn:
+    fallback_by_intent = {
+        ChatTurnIntent.COURSE_EDIT: "요청한 내용을 반영해 데이트 코스를 조정했어요.",
+        ChatTurnIntent.COURSE_QUESTION: "현재 코스를 기준으로 궁금한 내용을 안내해 드릴게요.",
+        ChatTurnIntent.CASUAL_CONVERSATION: (
+            "편하게 말씀해 주세요. 데이트 이야기라면 무엇이든 함께 생각해 볼게요."
+        ),
+        ChatTurnIntent.CLARIFICATION_REQUIRED: (
+            "원하는 변경 방향을 조금 더 구체적으로 알려주세요."
+        ),
+    }
+    return turn.model_copy(
+        update={
+            "assistant_message": _safe_text(
+                turn.assistant_message,
+                fallback_by_intent[turn.intent],
+            ),
+            "proposed_course": (
+                sanitize_course_content(turn.proposed_course)
+                if turn.proposed_course is not None
+                else None
+            ),
+            "warnings": [
+                warning
+                for warning in turn.warnings
+                if not _contains_internal_response_term(warning)
+            ],
+        }
+    )
+
+
+def _contains_internal_response_term(text: str) -> bool:
+    return any(pattern.search(text) for pattern in INTERNAL_RESPONSE_PATTERNS)
+
+
+def _safe_text(text: str, fallback: str) -> str:
+    return fallback if _contains_internal_response_term(text) else text
 
 
 class CoursePlanQualityPolicy:

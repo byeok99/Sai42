@@ -17,9 +17,25 @@ Browser
 
 ## Backend
 
-`backend/app`는 도메인별 router/service/repository 구조를 사용합니다. 현재는 FastAPI 진입점,
-공통 비동기 DB 세션, 공통 응답·예외·요청 추적, Health·Meta Options API, 공공데이터용
-`places` 모델과 멱등성 레코드 마이그레이션을 제공합니다. Place API를 포함한 실제 비즈니스
+`backend/app`는 도메인 우선 구조를 유지하고, 각 도메인 안을 다음 네 레이어로 동일하게
+분리합니다.
+
+```text
+app/<domain>/
+├── presentation/    # FastAPI router, dependency, middleware, HTTP 응답 변환
+├── application/     # 유스케이스 service와 입출력 DTO
+├── domain/          # 외부 프레임워크와 독립적인 규칙, enum, 상수
+└── infrastructure/  # SQLAlchemy model/repository와 외부 서비스 adapter
+```
+
+`auth`, `chat`, `common`, `community`, `course`, `history`, `place`, `ranking`, `weather`에 같은
+레이어 패키지를 적용합니다. HTTP 요청은 `presentation`에서 받고 유스케이스는 `application`에
+위임합니다. 영속성 구현은 `infrastructure`에 두며 실제 비즈니스 규칙은 router에 작성하지
+않습니다. 최상위 `main.py`, `config.py`, `database.py`, `models.py`는 애플리케이션 조립과 공통
+런타임 설정을 담당하므로 도메인 밖에 유지합니다.
+
+현재 `common`에는 공통 응답·예외·요청 추적과 Health·Meta Options API가 있고, `place`에는
+공공데이터 분류 규칙과 `places` 영속성 모델이 있습니다. Place API를 포함한 실제 비즈니스
 API는 아직 구현하지 않습니다.
 
 ## 데이터와 외부 서비스

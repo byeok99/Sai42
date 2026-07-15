@@ -22,7 +22,7 @@
 
 ## 시작하기
 
-Node.js 24와 Python 3.12가 필요합니다. 상세한 설치 및 실행 방법은 [개발환경 설정](docs/setup.md)을 확인하세요.
+Node.js 24와 Python 3.12가 필요합니다. 상세한 설치 및 실행 방법은 [개발환경 설정](docs/guides/setup.md)을 확인하세요.
 
 ```bash
 cd frontend
@@ -42,6 +42,6 @@ python -m uvicorn app.main:app --reload
 ## 문서
 
 - [문서 안내](docs/README.md)
-- [아키텍처](docs/architecture.md)
-- [환경변수](docs/environment-variables.md)
-- [배포 설정](docs/deployment.md)
+- [아키텍처](docs/guides/architecture.md)
+- [환경변수](docs/guides/environment-variables.md)
+- [배포 설정](docs/guides/deployment.md)

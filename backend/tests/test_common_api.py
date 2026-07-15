@@ -28,7 +28,7 @@ class CommonApiTest(unittest.IsolatedAsyncioTestCase):
         return httpx.AsyncClient(transport=transport, base_url="http://testserver")
 
     async def test_health_and_options_follow_the_common_contract(self) -> None:
-        app = create_app(Settings())
+        app = create_app(Settings(openai_api_key=None))
         request_id = str(uuid4())
 
         async with await self._client(app) as client:
@@ -88,6 +88,10 @@ class CommonApiTest(unittest.IsolatedAsyncioTestCase):
                 "/api/v1/places",
                 "/api/v1/places/{contentId}",
                 "/api/v1/places/{contentId}/nearby",
+                "/api/v1/chat/sessions",
+                "/api/v1/chat/sessions/{sessionId}",
+                "/api/v1/chat/sessions/{sessionId}/messages",
+                "/api/v1/chat/sessions/{sessionId}/confirm",
                 "/api/v1/date-courses/current",
                 "/api/v1/date-courses/current/places/{coursePlaceId}/complete",
                 "/api/v1/date-courses/current/places/{coursePlaceId}/heart",

@@ -1,4 +1,4 @@
-"""SQLAlchemy persistence model reserved for future AI chat sessions."""
+"""SQLAlchemy persistence model for AI chat sessions and mutable drafts."""
 
 from sqlalchemy import CheckConstraint, ForeignKey, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column
@@ -7,7 +7,7 @@ from app.database import Base
 
 
 class ChatSession(Base):
-    """Persisted course-draft session; Chat APIs are implemented in a later phase."""
+    """Persisted conversation, complete conditions, weather, and current course draft."""
 
     __tablename__ = "chat_sessions"
     __table_args__ = (

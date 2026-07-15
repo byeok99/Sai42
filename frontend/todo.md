@@ -7,13 +7,30 @@
 - [ ] UI layer / feature layer / repository layer / service layer 구조 기준 확정
 
 ## 2. API 명세 기반 데이터 계층 설계
-- [ ] API spec에서 endpoint, 요청/응답 DTO, 에러 포맷 정리
-- [ ] 공통 API client/axios 또는 fetch 기반 세팅
-- [ ] 타입 정의 파일 구성 (request/response/entity)
-- [ ] Repository layer 설계 및 기본 구현
-- [ ] Service layer 설계 및 비즈니스 로직 분리
-- [ ] endpoint → service → repository 흐름 검증
+- [x] API spec에서 endpoint, 요청/응답 DTO, 에러 포맷 정리
+- [x] 공통 API client/axios 또는 fetch 기반 세팅
+- [x] 타입 정의 파일 구성 (request/response/entity)
+- [x] Repository layer 설계 및 기본 구현
+- [x] Service layer 설계 및 비즈니스 로직 분리
+- [x] endpoint → service → repository 흐름 검증
 - [ ] 로딩, 에러, 빈 상태 처리 공통 패턴 정의
+
+### 완료된 API 도메인 구현
+- [x] Identity: 닉네임 추천, 프로필 생성, 프로필 검증, 내 프로필 조회
+- [x] Place: 장소 목록/상세/주변 장소 조회
+- [x] Chat: 채팅 세션 생성/조회/메시지 전송/확정/폐기
+- [x] Course: 현재 코스 조회, 장소 완료, 장소 하트, 데이트 종료
+- [x] Community: 게시글 목록/상세/생성/수정/삭제/좋아요/시작
+- [x] Ranking: 데이트 마스터 목록 조회
+- [x] History: 완료 코스 목록/상세/재진행
+
+### 앞으로 구현할 API 관련 작업
+- [ ] Swagger/OpenAPI 응답 스키마와 실제 DTO를 1:1로 맞추기
+- [ ] 인증 헤더 기반 공통 인증 유틸/스토어 연동
+- [ ] API 에러 처리 및 사용자 메시지 변환
+- [ ] 로딩/에러/빈 상태를 공통 composable 또는 store로 정리
+- [ ] 실제 화면 컴포넌트와 repository/service 연결
+- [ ] Pinia store 또는 composable에서 API 호출 흐름 연결
 
 ## 3. 디자인 시스템 구축
 - [ ] 와이어프레임 기반으로 공통 UI 패턴 정리

@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.auth.application.rate_limiter import AuthRateLimiter
 from app.auth.presentation.router import router as auth_router
 from app.chat.presentation.router import router as chat_router
+from app.common.presentation.database_browser import router as database_browser_router
 from app.common.presentation.dependencies import validate_optional_request_id
 from app.common.presentation.exception_handlers import register_exception_handlers
 from app.common.presentation.middleware import TraceIdMiddleware
@@ -110,6 +111,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         expose_headers=["X-Request-Id"],
     )
     register_exception_handlers(application)
+    application.include_router(database_browser_router)
     application.include_router(common_router, prefix=resolved_settings.api_prefix)
     application.include_router(auth_router, prefix=resolved_settings.api_prefix)
     application.include_router(place_router, prefix=resolved_settings.api_prefix)

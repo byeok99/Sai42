@@ -161,6 +161,7 @@ onMounted(() => {
       <div class="modal map-modal">
         <div class="modal-header">
           <h3>전체 데이트 코스</h3>
+          <button class="close-x-btn" @click="showMapModal = false">&times;</button>
         </div>
         <div class="modal-map-container">
           <LeafletMap :coords="store.course.coords" :places="store.course.places" />
@@ -591,7 +592,7 @@ onMounted(() => {
 .map-modal {
   width: 100%;
   max-width: 440px;
-  height: 80vh;
+  height: 62vh;
   display: flex;
   flex-direction: column;
   background: #fff;
@@ -600,11 +601,36 @@ onMounted(() => {
   box-shadow: var(--shadow);
 }
 
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
 .modal-header h3 {
-  margin: 0 0 12px 0;
+  margin: 0;
   font-size: 16px;
   font-weight: 800;
+  flex: 1;
   text-align: center;
+  padding-left: 24px;
+}
+
+.close-x-btn {
+  font-size: 24px;
+  font-weight: 300;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  line-height: 1;
+  padding: 4px 8px;
+  transition: color 0.2s;
+}
+
+.close-x-btn:hover {
+  color: var(--ink);
 }
 
 .modal-map-container {

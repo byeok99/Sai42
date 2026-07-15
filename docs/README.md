@@ -20,6 +20,7 @@ docs/
 │   ├── functional.md      # 기능 ID 60개
 │   ├── api.md             # API 엔드포인트 32개
 │   └── database.md        # DB 테이블 8개
+
 ├── guides/                # 개발·운영 절차
 │   ├── README.md
 │   ├── architecture.md

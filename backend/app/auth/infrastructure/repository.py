@@ -2,10 +2,12 @@
 
 from dataclasses import dataclass
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.infrastructure.models import UserProfile
+from app.community.infrastructure.models import CommunityPost
+from app.course.infrastructure.models import DateCourse
 from app.place.infrastructure.models import Place
 
 
@@ -77,6 +79,27 @@ class AuthRepository:
     async def rollback(self) -> None:
         await self.session.rollback()
 
-    async def get_profile_stats(self, _: str) -> ProfileStats:
-        """Return factual zero aggregates until the course/community tables exist."""
-        return ProfileStats()
+    async def get_profile_stats(self, profile_id: str) -> ProfileStats:
+        """Return current course and publishing aggregates for a profile."""
+        has_active = await self.session.scalar(
+            select(DateCourse.id)
+            .where(DateCourse.profile_id == profile_id, DateCourse.status == "ACTIVE")
+            .limit(1)
+        )
+        completed_count = await self.session.scalar(
+            select(func.count(DateCourse.id)).where(
+                DateCourse.profile_id == profile_id,
+                DateCourse.status == "COMPLETED",
+            )
+        )
+        published_count = await self.session.scalar(
+            select(func.count(CommunityPost.id)).where(
+                CommunityPost.author_profile_id == profile_id,
+                CommunityPost.status == "PUBLISHED",
+            )
+        )
+        return ProfileStats(
+            has_active_date_course=has_active is not None,
+            completed_date_course_count=completed_count or 0,
+            published_course_count=published_count or 0,
+        )

@@ -14,6 +14,7 @@ from app.common.presentation.middleware import TraceIdMiddleware
 from app.common.presentation.responses import DEFAULT_ERROR_RESPONSES
 from app.common.presentation.router import router as common_router
 from app.config import Settings, get_settings
+from app.course.presentation.router import router as current_course_router
 from app.database import dispose_database_engine
 from app.place.presentation.router import router as place_router
 
@@ -29,6 +30,10 @@ OPENAPI_TAGS = [
     {
         "name": "Place",
         "description": "SQLite에 적재된 공공 장소 검색, 상세 및 주변 장소 조회를 제공합니다.",
+    },
+    {
+        "name": "Current",
+        "description": "현재 데이트 코스 조회, 순차 진행, 장소 하트와 종료를 제공합니다.",
     },
 ]
 
@@ -83,6 +88,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(common_router, prefix=resolved_settings.api_prefix)
     application.include_router(auth_router, prefix=resolved_settings.api_prefix)
     application.include_router(place_router, prefix=resolved_settings.api_prefix)
+    application.include_router(current_course_router, prefix=resolved_settings.api_prefix)
     return application
 
 

@@ -88,6 +88,10 @@ class CommonApiTest(unittest.IsolatedAsyncioTestCase):
                 "/api/v1/places",
                 "/api/v1/places/{contentId}",
                 "/api/v1/places/{contentId}/nearby",
+                "/api/v1/date-courses/current",
+                "/api/v1/date-courses/current/places/{coursePlaceId}/complete",
+                "/api/v1/date-courses/current/places/{coursePlaceId}/heart",
+                "/api/v1/date-courses/current/complete",
             },
         )
         schemas = schema["components"]["schemas"]

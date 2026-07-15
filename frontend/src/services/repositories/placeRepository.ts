@@ -10,7 +10,7 @@ export interface PlaceRepository {
 }
 
 export class PlaceRepositoryImpl implements PlaceRepository {
-  async listPlaces(params: any) {
+  async listPlaces(params?: { district?: string; spaceType?: string; mood?: string; activity?: string }) {
     return apiClient.get<PlaceSummaryDto[]>(apiEndpoints.places, { params })
   }
 

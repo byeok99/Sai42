@@ -30,13 +30,15 @@ function scrollToBottom() {
 
 function handleSend() {
   if (!chatInput.value.trim()) return
-  store.sendChatMessage(chatInput.value)
+  void store.sendChatMessage(chatInput.value)
   chatInput.value = ''
   scrollToBottom()
 }
 
-function handleQuickAction(text: string) {
-  store.sendChatMessage(text)
+function handleQuickAction(
+  action: 'CHANGE_CAFE' | 'ADD_NIGHT_VIEW' | 'REDUCE_ROUTE' | 'INCREASE_INDOOR',
+) {
+  void store.sendQuickAction(action)
   scrollToBottom()
 }
 
@@ -44,9 +46,8 @@ function triggerMapFit() {
   showMapModal.value = true
 }
 
-function confirmCourse() {
-  store.decideCourse()
-  router.push({ name: 'current' })
+async function confirmCourse() {
+  if (await store.decideCourse()) router.push({ name: 'current' })
 }
 
 onMounted(() => {
@@ -97,16 +98,6 @@ onMounted(() => {
         </div>
       </BaseCard>
 
-      <!-- Festival Card -->
-      <BaseCard class="festival-card">
-        <div>
-          <span class="label">오늘의 축제</span>
-          <strong>유성온천문화축제</strong>
-          <p>유림공원 일원 · 18:00 야간 프로그램</p>
-        </div>
-        <button class="small-btn" @click="store.addFestivalToCourse">코스에 넣기</button>
-      </BaseCard>
-
       <!-- Map Card -->
       <BaseCard class="map-card">
         <div class="map-row">
@@ -125,15 +116,15 @@ onMounted(() => {
       <BaseCard class="course-card">
         <div class="course-row">
           <div>
-            <span class="label">AI가 조정 중</span>
+            <span class="label">AI 추천 코스</span>
             <h3>{{ store.course.title }}</h3>
           </div>
-          <BaseBadge variant="time">4시간</BaseBadge>
+          <BaseBadge variant="time">{{ store.course.places.length }}곳 추천</BaseBadge>
         </div>
         <div class="stats">
-          <span>💗 설렘 4.6</span>
-          <span>👟 체력 2</span>
-          <span>☂️ 비 생존력 5</span>
+          <span>📍 {{ store.course.places.length }}개 장소</span>
+          <span>🤖 AI가 취향 반영</span>
+          <span>✏️ 대화로 수정 가능</span>
         </div>
         <ol class="timeline">
           <li v-for="(place, idx) in store.course.places" :key="idx" :data-n="idx + 1">
@@ -157,10 +148,18 @@ onMounted(() => {
           </div>
         </div>
         <div class="quick-options">
-          <button @click="handleQuickAction('두 번째 장소를 카페로 바꿔줘')">☕ 카페로 변경</button>
-          <button @click="handleQuickAction('야경 장소를 추가해줘')">🌙 야경 추가</button>
-          <button @click="handleQuickAction('이동 거리를 줄여줘')">🚌 동선 줄이기</button>
-          <button @click="handleQuickAction('비가 와도 괜찮게 바꿔줘')">☂️ 실내 강화</button>
+          <button :disabled="store.loading" @click="handleQuickAction('CHANGE_CAFE')">
+            ☕ 카페로 변경
+          </button>
+          <button :disabled="store.loading" @click="handleQuickAction('ADD_NIGHT_VIEW')">
+            🌙 야경 추가
+          </button>
+          <button :disabled="store.loading" @click="handleQuickAction('REDUCE_ROUTE')">
+            🚌 동선 줄이기
+          </button>
+          <button :disabled="store.loading" @click="handleQuickAction('INCREASE_INDOOR')">
+            ☂️ 실내 강화
+          </button>
         </div>
         <div class="chat-input-row">
           <input

@@ -162,5 +162,34 @@ export interface CurrentCourseDto {
 }
 
 export interface CompleteCourseRequestDto {
-  completionComment: string
+  oneLineComment: string
+}
+
+export interface DateCourseProgressDto {
+  completedPlace: CoursePlaceDto
+  nextPlace: CoursePlaceDto | null
+  progress: CourseProgressSummaryDto
+}
+
+export interface CoursePlaceHeartDto {
+  coursePlaceId: string
+  heartedByMe: boolean
+  heartCount: number
+  updatedAt: string
+}
+
+export interface CompleteDateCourseDto {
+  completedCourse: DateCourseDto
+  communityPost: unknown
+}
+
+export interface HistoryCourseSummaryDto {
+  courseId: string
+  date: string
+  courseTitle: string
+  mainDistrict: District
+  oneLineComment: string | null
+  heartedPlaceCount: number
+  totalPlaceCount: number
+  completedAt: string
 }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDateStore } from '@/stores/dateStore'
 import BaseCard from '@/components/common/BaseCard.vue'
@@ -12,17 +12,15 @@ const store = useDateStore()
 const router = useRouter()
 
 const progressPct = computed(() => {
-  if (!store.activeCourse) return 0
-  const total = store.activeCourse.places.length
-  return Math.round(((store.activeProgress + 1) / total) * 100)
+  return store.activeCourse?.progress.progressPercent ?? 0
 })
 
-function handleLikePlace(idx: number) {
-  store.togglePlaceLike(idx)
+function handleLikePlace(coursePlaceId: string, hearted: boolean) {
+  void store.togglePlaceLike(coursePlaceId, hearted)
 }
 
-function handleNext() {
-  store.nextPlace()
+function handleNext(coursePlaceId: string) {
+  void store.nextPlace(coursePlaceId)
 }
 
 function endDating() {
@@ -30,8 +28,13 @@ function endDating() {
 }
 
 function navigateToChat() {
+  store.startNewCourseSetup()
   router.push({ name: 'chat' })
 }
+
+onMounted(() => {
+  void store.loadCurrentCourse()
+})
 </script>
 
 <template>
@@ -56,12 +59,13 @@ function navigateToChat() {
       <!-- Active Course Body -->
       <div v-else class="active-body">
         <div class="today-card">
-          <span class="label">2026. 07. 15 · 대전</span>
+          <span class="label">{{ store.activeCourse.date }} · 대전</span>
           <h3>{{ store.activeCourse.title }}</h3>
           <p class="desc">오늘의 날씨와 두 분의 취향을 반영했어요.</p>
           <div class="progress-meta">
             <span
-              >{{ store.activeProgress + 1 }} / {{ store.activeCourse.places.length }} 장소</span
+              >{{ store.activeCourse.progress.completedPlaceCount }} /
+              {{ store.activeCourse.progress.totalPlaceCount }} 장소</span
             >
             <span>{{ progressPct }}%</span>
           </div>
@@ -74,8 +78,14 @@ function navigateToChat() {
         <BaseCard class="minimap-wrapper">
           <LeafletMap
             v-if="store.activeCourse"
-            :coords="store.activeCourse.coords"
-            :places="store.activeCourse.places"
+            :coords="
+              store.activeCourse.places.flatMap((place) =>
+                place.place.latitude !== null && place.place.longitude !== null
+                  ? [[place.place.latitude, place.place.longitude]]
+                  : [],
+              )
+            "
+            :places="store.activeCourse.places.map((place) => place.place.name)"
             static
           />
           <button class="small-btn map-zoom-btn" @click="showMapModal = true">전체보기</button>
@@ -84,37 +94,43 @@ function navigateToChat() {
         <!-- Places List -->
         <div class="place-list">
           <div
-            v-for="(place, idx) in store.activeCourse.places"
-            :key="place"
+            v-for="place in store.activeCourse.places"
+            :key="place.coursePlaceId"
             :class="[
               'place-card',
-              { done: idx < store.activeProgress },
-              { current: idx === store.activeProgress },
+              { done: place.order < store.activeCourse.progress.currentOrderNo },
+              { current: place.order === store.activeCourse.progress.currentOrderNo },
             ]"
           >
             <div class="step-badge">
-              {{ idx < store.activeProgress ? '✓' : idx + 1 }}
+              {{ place.order < store.activeCourse.progress.currentOrderNo ? '✓' : place.order }}
             </div>
             <div class="place-info">
-              <h4>{{ place }}</h4>
+              <h4>{{ place.place.name }}</h4>
               <p>
                 {{
-                  idx === store.activeProgress
+                  place.order === store.activeCourse.progress.currentOrderNo
                     ? '현재 방문 중이에요'
-                    : idx < store.activeProgress
+                    : place.order < store.activeCourse.progress.currentOrderNo
                       ? '다녀온 장소'
                       : '다음 장소'
                 }}
               </p>
             </div>
             <div class="place-actions">
-              <button class="like-toggle" @click="handleLikePlace(idx)">
-                {{ store.activeCourse.likes[idx] ? '♥ 좋아요' : '♡ 좋아요' }}
+              <button
+                class="like-toggle"
+                @click="handleLikePlace(place.coursePlaceId, place.heartedByMe)"
+              >
+                {{ place.heartedByMe ? '♥ 좋아요' : '♡ 좋아요' }}
               </button>
               <button
-                v-if="idx === store.activeProgress && idx < store.activeCourse.places.length - 1"
+                v-if="
+                  place.order === store.activeCourse.progress.currentOrderNo &&
+                  !store.activeCourse.progress.allPlacesCompleted
+                "
                 class="next-step-btn"
-                @click="handleNext"
+                @click="handleNext(place.coursePlaceId)"
               >
                 다음 장소
               </button>
@@ -142,8 +158,14 @@ function navigateToChat() {
         <div class="modal-map-container" style="margin-bottom: 0">
           <LeafletMap
             v-if="store.activeCourse"
-            :coords="store.activeCourse.coords"
-            :places="store.activeCourse.places"
+            :coords="
+              store.activeCourse.places.flatMap((place) =>
+                place.place.latitude !== null && place.place.longitude !== null
+                  ? [[place.place.latitude, place.place.longitude]]
+                  : [],
+              )
+            "
+            :places="store.activeCourse.places.map((place) => place.place.name)"
           />
         </div>
       </div>

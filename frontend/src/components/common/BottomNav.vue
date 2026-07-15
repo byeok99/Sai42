@@ -1,14 +1,22 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useDateStore } from '@/stores/dateStore'
 
 const route = useRoute()
 const router = useRouter()
+const store = useDateStore()
 
 const currentTab = computed(() => route.name as string)
 
-function navigate(tabName: string) {
-  router.push({ name: tabName })
+async function navigate(tabName: string) {
+  if (tabName === 'history') {
+    await Promise.all([store.loadHistory(), store.loadRankings()])
+  }
+  if (tabName === 'ranking') {
+    await store.loadRankings()
+  }
+  await router.push({ name: tabName })
 }
 </script>
 

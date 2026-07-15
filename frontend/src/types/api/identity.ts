@@ -1,5 +1,5 @@
-export interface NicknameSuggestionDto {
-  nickname: string
+export interface NicknameSuggestionsDto {
+  suggestions: string[]
 }
 
 export interface ProfileCreateRequestDto {
@@ -12,11 +12,27 @@ export interface ProfileVerifyRequestDto {
   password: string
 }
 
-export interface ProfileMeDto {
-  id: string
+export interface ProfileCreatedDto {
+  profileId: string
   nickname: string
+  hasActiveDateCourse: boolean
+  completedDateCourseCount: number
   createdAt: string
-  updatedAt: string
-  profileImageUrl?: string | null
-  status?: 'ACTIVE' | 'DELETED'
+}
+
+export interface ProfileVerifiedDto {
+  profileId: string
+  nickname: string
+  hasActiveDateCourse: boolean
+  completedDateCourseCount: number
+  verifiedAt: string
+}
+
+export interface MyProfileDto {
+  profileId: string
+  nickname: string
+  hasActiveDateCourse: boolean
+  completedDateCourseCount: number
+  publishedCourseCount: number
+  createdAt: string
 }

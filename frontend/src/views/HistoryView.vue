@@ -1,28 +1,83 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onActivated, onMounted, ref } from 'vue'
 import { useDateStore } from '@/stores/dateStore'
 import BaseCard from '@/components/common/BaseCard.vue'
 
 const store = useDateStore()
+const scrollArea = ref<HTMLElement | null>(null)
+const pullDistance = ref(0)
+const pullStartY = ref<number | null>(null)
+const refreshing = ref(false)
 
 const averageRating = computed(() => {
-  if (store.history.length === 0) return '0.0'
-  const sum = store.history.reduce((acc, curr) => acc + curr.rating, 0)
-  return (sum / store.history.length).toFixed(1)
+  if (store.history.length === 0) return '0'
+  return String(store.history.reduce((acc, curr) => acc + curr.heartedPlaceCount, 0))
 })
 
 const totalPlacesVisited = computed(() => {
-  return store.history.reduce((acc, curr) => acc + curr.places.length, 0)
+  return store.history.reduce((acc, curr) => acc + curr.totalPlaceCount, 0)
 })
+
+const postsByCourseId = computed(
+  () =>
+    new Map(
+      store.rankings
+        .filter((post) => post.authorNickname === store.name)
+        .map((post) => [post.courseId, post]),
+    ),
+)
 
 function showInfo() {
-  store.triggerToast('월별·테마별 필터가 들어갈 자리예요')
+  store.triggerToast('완료한 데이트 코스를 불러왔어요.')
 }
 
-import { onMounted } from 'vue'
+async function refreshHistory() {
+  if (refreshing.value) return
+  refreshing.value = true
+  await Promise.all([store.loadHistory(), store.loadRankings()])
+  refreshing.value = false
+}
+
+function startPull(event: TouchEvent) {
+  if (scrollArea.value?.scrollTop === 0) pullStartY.value = event.touches[0]?.clientY ?? null
+}
+
+function movePull(event: TouchEvent) {
+  if (pullStartY.value === null) return
+  pullDistance.value = Math.min(
+    78,
+    Math.max(0, (event.touches[0]?.clientY ?? pullStartY.value) - pullStartY.value),
+  )
+}
+
+function endPull() {
+  const shouldRefresh = pullDistance.value >= 58
+  pullStartY.value = null
+  pullDistance.value = 0
+  if (shouldRefresh) void refreshHistory()
+}
+
 onMounted(() => {
-  store.fetchHistory()
+  void refreshHistory()
 })
+onActivated(() => {
+  void refreshHistory()
+})
+
+async function editPost(courseId: string, currentComment: string) {
+  const post = postsByCourseId.value.get(courseId)
+  if (!post) return
+  const nextComment = prompt('수정할 한 줄 코멘트를 입력해 주세요.', currentComment)
+  if (nextComment !== null) await store.updateCommunityPost(post.postId, nextComment)
+}
+
+async function deletePost(courseId: string) {
+  const post = postsByCourseId.value.get(courseId)
+  if (post && confirm('랭킹보드에서 이 게시글을 삭제할까요?')) {
+    await store.deleteCommunityPost(post.postId)
+  }
+}
+
 </script>
 
 <template>
@@ -35,7 +90,20 @@ onMounted(() => {
       <button class="info-btn" @click="showInfo">⌁</button>
     </header>
 
-    <div class="scroll-area">
+    <div
+      ref="scrollArea"
+      class="scroll-area"
+      @touchstart="startPull"
+      @touchmove="movePull"
+      @touchend="endPull"
+    >
+      <div
+        class="pull-indicator"
+        :class="{ visible: pullDistance > 0 || refreshing }"
+        :style="{ height: `${refreshing ? 38 : pullDistance}px` }"
+      >
+        {{ refreshing ? '추억을 새로 불러오는 중…' : '놓으면 새로고침' }}
+      </div>
       <!-- Stats Summary Card -->
       <BaseCard class="summary-card">
         <div>
@@ -48,30 +116,31 @@ onMounted(() => {
         </div>
         <div>
           <strong>{{ averageRating }}</strong>
-          <span>평균 설렘</span>
+          <span>남긴 장소 하트</span>
         </div>
       </BaseCard>
 
       <!-- Month Header -->
       <div class="month-header">
-        <strong>2026년 7월</strong>
+        <strong>완료한 데이트</strong>
         <span>우리의 기록</span>
       </div>
 
       <!-- History List -->
       <div class="hlist">
-        <BaseCard v-for="(item, idx) in store.history" :key="idx" class="history-card">
+        <BaseCard v-for="item in store.history" :key="item.courseId" class="history-card">
           <div class="hhead">
-            <div class="date-badge">{{ item.date }}</div>
+            <div class="date-badge">{{ item.date.slice(-2) }}</div>
             <div>
-              <span class="label">7월 · {{ '★'.repeat(item.rating) }}</span>
-              <h3>{{ item.title }}</h3>
-              <p>{{ item.places.length }}개 장소 · 대전</p>
+              <span class="label">{{ item.mainDistrict }}</span>
+              <h3>{{ item.courseTitle }}</h3>
+              <p>{{ item.totalPlaceCount }}개 장소 · 하트 {{ item.heartedPlaceCount }}개</p>
             </div>
           </div>
-          <div class="hcomment">“{{ item.comment }}”</div>
-          <div class="places">
-            <span v-for="place in item.places" :key="place">{{ place }}</span>
+          <div class="hcomment">“{{ item.oneLineComment ?? '남긴 코멘트가 없어요.' }}”</div>
+          <div v-if="postsByCourseId.has(item.courseId)" class="post-actions">
+            <button @click="editPost(item.courseId, item.oneLineComment ?? '')">게시글 수정</button>
+            <button class="delete" @click="deletePost(item.courseId)">게시글 삭제</button>
           </div>
         </BaseCard>
       </div>
@@ -168,6 +237,16 @@ onMounted(() => {
   gap: 10px;
 }
 
+.pull-indicator {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 800;
+  transition: height 0.15s ease;
+}
+
 .history-card {
   padding: 13px;
 }
@@ -191,21 +270,21 @@ onMounted(() => {
 .label {
   display: block;
   color: #e75d74;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.08em;
 }
 
 .history-card h3 {
   margin: 2px 0 4px;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 800;
 }
 
 .history-card p {
   margin: 0;
   color: var(--muted);
-  font-size: 8px;
+  font-size: 9px;
 }
 
 .hcomment {
@@ -213,8 +292,30 @@ onMounted(() => {
   padding: 9px;
   border-radius: 11px;
   background: #f8f3f1;
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1.5;
+}
+
+.post-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.post-actions button {
+  padding: 5px 7px;
+  border: 0;
+  border-radius: 7px;
+  background: #f3eceb;
+  color: #66575a;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.post-actions .delete {
+  background: #ffebeb;
+  color: #c84d61;
 }
 
 .places {

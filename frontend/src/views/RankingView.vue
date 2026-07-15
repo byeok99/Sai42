@@ -1,41 +1,20 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDateStore } from '@/stores/dateStore'
 import BaseCard from '@/components/common/BaseCard.vue'
+import LeafletMap from '@/components/map/LeafletMap.vue'
 
 const store = useDateStore()
 const router = useRouter()
-
 const rankTab = ref<'popular' | 'masters' | 'new'>('popular')
 
 const sortedRankings = computed(() => {
-  const list = [...store.rankings]
-  if (rankTab.value === 'popular') {
-    return list.sort((x, y) => y.likes - x.likes)
-  }
-  if (rankTab.value === 'masters') {
-    return list.sort((x, y) => y.likes + y.use - (x.likes + x.use))
-  }
-  if (rankTab.value === 'new') {
-    // Treat IDs with 'u' (user created) as newest, or simple reverse order for demo
-    return list.reverse()
-  }
-  return list
+  return store.rankings
 })
 
-function handleLike(id: string) {
-  store.likeRankItem(id)
-}
-
-function handleImport(id: string) {
-  const item = store.rankings.find((x) => x.id === id)
-  if (item) {
-    store.importRankedCourse(item)
-    setTimeout(() => {
-      router.push({ name: 'chat' })
-    }, 450)
-  }
+function handleLike(postId: string, likedByMe: boolean) {
+  void store.likeRankItem(postId, likedByMe)
 }
 
 function showHelp() {
@@ -44,9 +23,13 @@ function showHelp() {
 
 const editingId = ref<string | null>(null)
 const editCommentText = ref('')
+const scrollArea = ref<HTMLElement | null>(null)
+const pullDistance = ref(0)
+const pullStartY = ref<number | null>(null)
+const refreshing = ref(false)
 
-function startEdit(id: string, comment: string) {
-  editingId.value = id
+function startEdit(postId: string, comment: string) {
+  editingId.value = postId
   editCommentText.value = comment
 }
 
@@ -55,30 +38,58 @@ function cancelEdit() {
   editCommentText.value = ''
 }
 
-function saveEdit(id: string) {
-  if (!editCommentText.value.trim()) return
-  store.updateRankComment(id, editCommentText.value)
-  editingId.value = null
-  editCommentText.value = ''
+async function saveEdit(postId: string) {
+  if (await store.updateCommunityPost(postId, editCommentText.value)) cancelEdit()
 }
 
-function handleDelete(id: string) {
-  if (confirm('이 포스트를 삭제하시겠습니까?')) {
-    store.deleteRankItem(id)
+async function handleDelete(postId: string) {
+  if (confirm('랭킹보드에서 이 게시글을 삭제할까요?')) await store.deleteCommunityPost(postId)
+}
+
+async function startCourse(postId: string) {
+  if (await store.startCommunityCourse(postId)) await router.push({ name: 'current' })
+}
+
+function toggleRoute(postId: string) {
+  if (store.selectedCommunityCourse?.postId === postId) {
+    store.selectedCommunityCourse = null
+  } else {
+    void store.loadCommunityCourse(postId)
   }
 }
 
-import { onMounted } from 'vue'
+async function refreshRankings() {
+  if (refreshing.value) return
+  refreshing.value = true
+  await store.loadRankings(rankTab.value === 'new' ? 'LATEST' : 'POPULAR')
+  refreshing.value = false
+}
+
+function startPull(event: TouchEvent) {
+  if (scrollArea.value?.scrollTop === 0) pullStartY.value = event.touches[0]?.clientY ?? null
+}
+
+function movePull(event: TouchEvent) {
+  if (pullStartY.value === null) return
+  pullDistance.value = Math.min(
+    78,
+    Math.max(0, (event.touches[0]?.clientY ?? pullStartY.value) - pullStartY.value),
+  )
+}
+
+function endPull() {
+  const shouldRefresh = pullDistance.value >= 58
+  pullStartY.value = null
+  pullDistance.value = 0
+  if (shouldRefresh) void refreshRankings()
+}
+
 onMounted(() => {
-  store.fetchRankings()
+  void refreshRankings()
 })
-
-function handleScroll(e: Event) {
-  const target = e.target as HTMLElement
-  if (target.scrollTop + target.clientHeight >= target.scrollHeight - 10) {
-    store.fetchRankings()
-  }
-}
+watch(rankTab, () => {
+  void refreshRankings()
+})
 </script>
 
 <template>
@@ -91,12 +102,25 @@ function handleScroll(e: Event) {
       <button class="help-btn" @click="showHelp">?</button>
     </header>
 
-    <div class="scroll-area" @scroll="handleScroll">
+    <div
+      ref="scrollArea"
+      class="scroll-area"
+      @touchstart="startPull"
+      @touchmove="movePull"
+      @touchend="endPull"
+    >
+      <div
+        class="pull-indicator"
+        :class="{ visible: pullDistance > 0 || refreshing }"
+        :style="{ height: `${refreshing ? 38 : pullDistance}px` }"
+      >
+        {{ refreshing ? '랭킹을 새로 불러오는 중…' : '놓으면 새로고침' }}
+      </div>
       <!-- Master Banner Card -->
       <BaseCard class="master-card">
         <span class="banner-label">이번 주 데이트 마스터</span>
-        <h3>🏆 구름이와 몽글이</h3>
-        <p>코스 이용 128회 · 좋아요 342개</p>
+        <h3>🏆 공개 코스 랭킹</h3>
+        <p>완료한 데이트 코스를 다른 커플과 나눠요.</p>
         <div class="crown">👑</div>
       </BaseCard>
 
@@ -113,50 +137,79 @@ function handleScroll(e: Event) {
 
       <!-- Rankings List -->
       <div class="ranklist">
-        <BaseCard v-for="(item, idx) in sortedRankings" :key="item.id" class="rank-card">
+        <BaseCard v-for="(item, idx) in sortedRankings" :key="item.postId" class="rank-card">
           <div class="rank-head">
             <div class="num">{{ idx + 1 }}</div>
             <div class="rank-info">
-              <span class="theme-tag">{{ item.theme || '커플 추천' }}</span>
-              <h3>{{ item.title }}</h3>
+              <span class="theme-tag">{{ item.mainDistrict }}</span>
+              <h3>{{ item.courseTitle }}</h3>
               <div class="meta">
-                <span>{{ item.creator }}</span>
-                <span>★ {{ item.rating }}</span>
+                <span>{{ item.authorNickname }}</span>
+                <span>순위 {{ item.rank ?? idx + 1 }}</span>
               </div>
             </div>
           </div>
           <!-- Comment Container -->
           <div class="comment-container">
-            <div v-if="editingId === item.id" class="edit-comment-row">
+            <div v-if="editingId === item.postId" class="edit-comment-row">
               <input
                 v-model="editCommentText"
                 class="edit-input"
-                @keydown.enter="saveEdit(item.id)"
+                @keydown.enter="saveEdit(item.postId)"
               />
               <div class="edit-actions">
-                <button class="text-action-btn save-btn" @click="saveEdit(item.id)">저장</button>
+                <button class="text-action-btn save-btn" @click="saveEdit(item.postId)">
+                  저장
+                </button>
                 <button class="text-action-btn" @click="cancelEdit">취소</button>
               </div>
             </div>
             <div v-else class="comment-body">
-              <div class="comment">“{{ item.comment }}”</div>
-              <div v-if="item.creator === store.name" class="my-post-actions">
-                <button class="text-action-btn" @click="startEdit(item.id, item.comment)">
+              <div class="comment">“{{ item.oneLineComment }}”</div>
+              <div v-if="item.authorNickname === store.name" class="my-post-actions">
+                <button
+                  class="text-action-btn"
+                  @click="startEdit(item.postId, item.oneLineComment)"
+                >
                   수정
                 </button>
-                <button class="text-action-btn delete-text" @click="handleDelete(item.id)">
+                <button class="text-action-btn delete-text" @click="handleDelete(item.postId)">
                   삭제
                 </button>
               </div>
             </div>
           </div>
           <div class="places">
-            <span v-for="place in item.places" :key="place">{{ place }}</span>
+            <span v-for="tag in item.tags" :key="tag">{{ tag }}</span>
+          </div>
+          <button class="route-btn" @click="toggleRoute(item.postId)">
+            {{
+              store.selectedCommunityCourse?.postId === item.postId
+                ? '코스 경로 닫기'
+                : '🗺️ 코스 경로 보기'
+            }}
+          </button>
+          <div v-if="store.selectedCommunityCourse?.postId === item.postId" class="route-preview">
+            <LeafletMap
+              :coords="
+                store.selectedCommunityCourse.places.flatMap((place) =>
+                  place.place.latitude !== null && place.place.longitude !== null
+                    ? [[place.place.latitude, place.place.longitude]]
+                    : [],
+                )
+              "
+              :places="store.selectedCommunityCourse.places.map((place) => place.place.name)"
+              static
+            />
           </div>
           <div class="actions">
-            <button class="like-btn" @click="handleLike(item.id)">♡ {{ item.likes }}</button>
-            <span class="use-count">사용 {{ item.use }}회</span>
-            <button class="import-btn" @click="handleImport(item.id)">내 코스로 가져오기</button>
+            <button class="like-btn" @click="handleLike(item.postId, item.likedByMe)">
+              {{ item.likedByMe ? '♥' : '♡' }} {{ item.courseLikeCount }}
+            </button>
+            <span class="use-count">장소 하트 {{ item.placeHeartCount }}개</span>
+            <button class="import-btn" :disabled="store.loading" @click="startCourse(item.postId)">
+              현재 데이트로 시작
+            </button>
           </div>
         </BaseCard>
       </div>
@@ -278,6 +331,16 @@ function handleScroll(e: Event) {
   gap: 10px;
 }
 
+.pull-indicator {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 800;
+  transition: height 0.15s ease;
+}
+
 .rank-card {
   padding: 13px;
 }
@@ -304,14 +367,14 @@ function handleScroll(e: Event) {
 
 .theme-tag {
   color: #e75d74;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.08em;
 }
 
 .rank-card h3 {
   margin: 0 0 4px;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 800;
 }
 
@@ -319,7 +382,7 @@ function handleScroll(e: Event) {
   display: flex;
   justify-content: space-between;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .comment {
@@ -328,7 +391,7 @@ function handleScroll(e: Event) {
   border-radius: 11px;
   background: #fff5f7;
   color: #6f5b5f;
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1.5;
 }
 
@@ -348,7 +411,7 @@ function handleScroll(e: Event) {
   padding: 6px 8px;
   border-radius: 9px;
   background: #f3efed;
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 700;
 }
 
@@ -359,10 +422,27 @@ function handleScroll(e: Event) {
   margin-top: 10px;
 }
 
+.route-btn {
+  width: 100%;
+  margin-top: 10px;
+  padding: 9px;
+  border-radius: 10px;
+  background: #f3efed;
+  color: #66575a;
+  font-size: 11px;
+  font-weight: 800;
+}
+.route-preview {
+  height: 180px;
+  margin-top: 8px;
+  overflow: hidden;
+  border-radius: 13px;
+}
+
 .actions button {
   padding: 8px 9px;
   border-radius: 10px;
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 800;
   border: 0;
 }
@@ -373,7 +453,7 @@ function handleScroll(e: Event) {
 }
 
 .use-count {
-  font-size: 8px;
+  font-size: 9px;
   color: var(--muted);
 }
 

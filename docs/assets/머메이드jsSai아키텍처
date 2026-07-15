@@ -1,0 +1,91 @@
+flowchart TB
+    User(("User Input"))
+
+    subgraph FE["Frontend Architecture: Vue 3"]
+        direction LR
+
+        subgraph F_UI["UI Layer"]
+            UI["Views / Components<br/>Entrance · SurveyModal · Chat · Current · Ranking · History"]
+            Router["Vue Router<br/>entrance · chat · current · ranking · history"]
+        end
+
+        subgraph F_State["State & Navigation"]
+            Store["Pinia Store<br/>profileId · password · surveyAnswers<br/>sessionId · draftId · draftVersion<br/>currentCourse · rankings · history · loading"]
+        end
+
+        subgraph F_Access["Application Access Layer"]
+            Services["Services<br/>identity · chat · course<br/>community · history · ranking"]
+            Repositories["Repositories<br/>identity · chat · course<br/>community · history · ranking"]
+            Client["ApiClient<br/>fetch · BaseDto / ErrorResponseDto<br/>Auth Headers"]
+        end
+    end
+
+    Network(("HTTPS / REST API<br/>/api/v1 · JSON · CORS"))
+
+    subgraph BE["Backend Architecture: FastAPI"]
+        direction LR
+
+        subgraph B_Pres["Presentation Layer"]
+            Middleware["Middleware / Dependencies<br/>CORS · Request ID · Exception Handler<br/>Current Profile 인증"]
+            Routers["Routers<br/>Common · Auth · Place · Chat · Course<br/>Community · Ranking · History · Weather"]
+            Validation["Pydantic DTO Validation<br/>Request / Response Schema"]
+        end
+
+        subgraph B_App["Application Layer"]
+            AppServices["Application Services<br/>AuthService · ChatService · DateCourseService<br/>CommunityService · HistoryService · WeatherService"]
+            CrossCutting["Use Case Control<br/>Transaction · Idempotency<br/>Optimistic Locking · Ownership Check"]
+        end
+
+        subgraph B_Domain["Domain Layer"]
+            DomainRules["Domain Rules / Entities / Enums<br/>Auth Rules · Chat Session Status<br/>Course Progress · Community Ownership"]
+        end
+
+        subgraph B_Infra["Infrastructure Layer"]
+            RepositoriesImpl["SQLAlchemy Repository Implementations"]
+            Providers["External Provider Adapters<br/>OpenAiCourseProvider · OpenMeteoProvider"]
+        end
+    end
+
+    subgraph Data["Database & External Services"]
+        DB[("SQLite<br/>user_profiles · places · chat_sessions<br/>date_courses · date_course_places<br/>community_posts · community_likes<br/>idempotency_records")]
+        OpenAI["OpenAI Responses API<br/>Structured Course Output"]
+        Weather["Open-Meteo Forecast API<br/>Weather Summary"]
+    end
+
+    subgraph Safety["Session / Safety State"]
+        SessionState["Frontend Memory State<br/>profileId · password · sessionId<br/>draftId · draftVersion"]
+        Headers["Request Headers<br/>X-Profile-Id · X-User-Password<br/>X-Request-Id · Idempotency-Key(optional)"]
+        Tracking["Response / Concurrency<br/>traceId · expectedDraftVersion"]
+    end
+
+    User --> UI
+    UI -. navigation .-> Router
+    UI --> Store
+
+    Store --> Services
+    Services --> Repositories
+    Repositories --> Client
+    Client <--> Network
+
+    Store -. manages .-> SessionState
+    Client -. sends .-> Headers
+    Client -. receives .-> Tracking
+
+    Network <--> Middleware
+    Middleware --> Routers
+    Routers --> Validation
+    Validation --> AppServices
+    AppServices --> CrossCutting
+
+    AppServices -. uses .-> DomainRules
+    AppServices --> RepositoriesImpl
+    AppServices --> Providers
+
+    RepositoriesImpl <--> DB
+    Providers <--> OpenAI
+    Providers <--> Weather
+
+    style FE fill:#FFF3F5,stroke:#FF8295,stroke-width:2px
+    style BE fill:#EEF7FF,stroke:#7CB7E8,stroke-width:2px
+    style Data fill:#F7F4FF,stroke:#A995E8,stroke-width:2px
+    style Safety fill:#FFFBEA,stroke:#D6B84A,stroke-width:2px

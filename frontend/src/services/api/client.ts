@@ -1,8 +1,26 @@
 import type { ApiHeaders, BaseDto, ErrorResponseDto } from '@/types/api/common'
 
-const DEFAULT_BASE_URL = import.meta.env.VITE_API_BASE_URL 
-  ? `${import.meta.env.VITE_API_BASE_URL}/api/v1`
-  : '/api/v1'
+const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '')
+const DEFAULT_BASE_URL = configuredBaseUrl
+  ? configuredBaseUrl.endsWith('/api/v1')
+    ? configuredBaseUrl
+    : `${configuredBaseUrl}/api/v1`
+  : 'https://sai42-backend.onrender.com/api/v1'
+const API_BASE_URL = DEFAULT_BASE_URL
+
+export class ApiRequestError extends Error {
+  constructor(
+    public readonly code: string,
+    public readonly status: number,
+    public readonly traceId?: string,
+    message = '요청 처리에 실패했습니다.',
+  ) {
+    super(
+      `${message} (오류 코드: ${code} · HTTP ${status}${traceId ? ` · 추적 ID: ${traceId}` : ''})`,
+    )
+    this.name = 'ApiRequestError'
+  }
+}
 
 export class ApiClient {
   constructor(private readonly baseUrl: string = DEFAULT_BASE_URL) {}
@@ -46,11 +64,21 @@ export class ApiClient {
       ...(method !== 'GET' && options.body ? { body: JSON.stringify(options.body) } : {}),
     })
 
-    const payload = (await response.json().catch(() => null)) as BaseDto<T> | ErrorResponseDto | null
+    const payload = (await response.json().catch(() => null)) as
+      | BaseDto<T>
+      | ErrorResponseDto
+      | null
 
     if (!response.ok) {
-      const errorMessage = payload && 'message' in payload ? payload.message : 'Request failed'
-      throw new Error(errorMessage)
+      if (payload && 'code' in payload && 'message' in payload) {
+        throw new ApiRequestError(payload.code, response.status, payload.traceId, payload.message)
+      }
+      throw new ApiRequestError(
+        'NETWORK_REQUEST_FAILED',
+        response.status,
+        undefined,
+        '서버 요청에 실패했습니다.',
+      )
     }
 
     if (!payload || typeof payload !== 'object' || !('success' in payload) || !payload.success) {
@@ -60,7 +88,13 @@ export class ApiClient {
     return payload as BaseDto<T>
   }
 
-  get<T>(path: string, options?: { headers?: ApiHeaders; params?: Record<string, string | number | boolean | undefined> }): Promise<BaseDto<T>> {
+  get<T>(
+    path: string,
+    options?: {
+      headers?: ApiHeaders
+      params?: Record<string, string | number | boolean | undefined>
+    },
+  ): Promise<BaseDto<T>> {
     return this.request<T>('GET', path, options)
   }
 
@@ -81,4 +115,4 @@ export class ApiClient {
   }
 }
 
-export const apiClient = new ApiClient()
+export const apiClient = new ApiClient(API_BASE_URL)

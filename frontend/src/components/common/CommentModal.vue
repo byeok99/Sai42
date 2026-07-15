@@ -5,16 +5,9 @@ import BaseButton from './BaseButton.vue'
 
 const store = useDateStore()
 const comment = ref('')
-const rating = ref(5)
-
-function setRating(r: number) {
-  rating.value = r
-}
-
 function submit() {
-  store.submitReview(comment.value, rating.value)
+  void store.submitReview(comment.value)
   comment.value = ''
-  rating.value = 5
 }
 
 function cancel() {
@@ -33,11 +26,6 @@ function cancel() {
         maxlength="60"
         placeholder="예: 비 오는 날에도 이동이 편해서 좋았어요!"
       ></textarea>
-      <div class="rating">
-        <button v-for="i in 5" :key="i" @click="setRating(i)">
-          {{ i <= rating ? '♥' : '♡' }}
-        </button>
-      </div>
       <div class="modalacts">
         <BaseButton variant="secondary" @click="cancel">조금 더 데이트</BaseButton>
         <BaseButton variant="primary" @click="submit">기록 남기기</BaseButton>

@@ -1,41 +1,17 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useDateStore } from '@/stores/dateStore'
 import BaseCard from '@/components/common/BaseCard.vue'
 
 const store = useDateStore()
-const router = useRouter()
-
 const rankTab = ref<'popular' | 'masters' | 'new'>('popular')
 
 const sortedRankings = computed(() => {
-  const list = [...store.rankings]
-  if (rankTab.value === 'popular') {
-    return list.sort((x, y) => y.likes - x.likes)
-  }
-  if (rankTab.value === 'masters') {
-    return list.sort((x, y) => y.likes + y.use - (x.likes + x.use))
-  }
-  if (rankTab.value === 'new') {
-    // Treat IDs with 'u' (user created) as newest, or simple reverse order for demo
-    return list.reverse()
-  }
-  return list
+  return store.rankings
 })
 
-function handleLike(id: string) {
-  store.likeRankItem(id)
-}
-
-function handleImport(id: string) {
-  const item = store.rankings.find((x) => x.id === id)
-  if (item) {
-    store.importRankedCourse(item)
-    setTimeout(() => {
-      router.push({ name: 'chat' })
-    }, 450)
-  }
+function handleLike(postId: string, likedByMe: boolean) {
+  void store.likeRankItem(postId, likedByMe)
 }
 
 function showHelp() {
@@ -45,8 +21,8 @@ function showHelp() {
 const editingId = ref<string | null>(null)
 const editCommentText = ref('')
 
-function startEdit(id: string, comment: string) {
-  editingId.value = id
+function startEdit(postId: string, comment: string) {
+  editingId.value = postId
   editCommentText.value = comment
 }
 
@@ -55,18 +31,8 @@ function cancelEdit() {
   editCommentText.value = ''
 }
 
-function saveEdit(id: string) {
-  if (!editCommentText.value.trim()) return
-  store.updateRankComment(id, editCommentText.value)
-  editingId.value = null
-  editCommentText.value = ''
-}
-
-function handleDelete(id: string) {
-  if (confirm('이 포스트를 삭제하시겠습니까?')) {
-    store.deleteRankItem(id)
-  }
-}
+onMounted(() => { void store.loadRankings() })
+watch(rankTab, (tab) => { void store.loadRankings(tab === 'new' ? 'LATEST' : 'POPULAR') })
 </script>
 
 <template>
@@ -83,8 +49,8 @@ function handleDelete(id: string) {
       <!-- Master Banner Card -->
       <BaseCard class="master-card">
         <span class="banner-label">이번 주 데이트 마스터</span>
-        <h3>🏆 구름이와 몽글이</h3>
-        <p>코스 이용 128회 · 좋아요 342개</p>
+        <h3>🏆 공개 코스 랭킹</h3>
+        <p>완료한 데이트 코스를 다른 커플과 나눠요.</p>
         <div class="crown">👑</div>
       </BaseCard>
 
@@ -101,50 +67,42 @@ function handleDelete(id: string) {
 
       <!-- Rankings List -->
       <div class="ranklist">
-        <BaseCard v-for="(item, idx) in sortedRankings" :key="item.id" class="rank-card">
+        <BaseCard v-for="(item, idx) in sortedRankings" :key="item.postId" class="rank-card">
           <div class="rank-head">
             <div class="num">{{ idx + 1 }}</div>
             <div class="rank-info">
-              <span class="theme-tag">{{ item.theme || '커플 추천' }}</span>
-              <h3>{{ item.title }}</h3>
+              <span class="theme-tag">{{ item.mainDistrict }}</span>
+              <h3>{{ item.courseTitle }}</h3>
               <div class="meta">
-                <span>{{ item.creator }}</span>
-                <span>★ {{ item.rating }}</span>
+                <span>{{ item.authorNickname }}</span>
+                <span>순위 {{ item.rank ?? idx + 1 }}</span>
               </div>
             </div>
           </div>
           <!-- Comment Container -->
           <div class="comment-container">
-            <div v-if="editingId === item.id" class="edit-comment-row">
+            <div v-if="editingId === item.postId" class="edit-comment-row">
               <input
                 v-model="editCommentText"
                 class="edit-input"
-                @keydown.enter="saveEdit(item.id)"
+                @keydown.enter="cancelEdit"
               />
               <div class="edit-actions">
-                <button class="text-action-btn save-btn" @click="saveEdit(item.id)">저장</button>
+                <button class="text-action-btn save-btn" @click="cancelEdit">닫기</button>
                 <button class="text-action-btn" @click="cancelEdit">취소</button>
               </div>
             </div>
             <div v-else class="comment-body">
-              <div class="comment">“{{ item.comment }}”</div>
-              <div v-if="item.creator === store.name" class="my-post-actions">
-                <button class="text-action-btn" @click="startEdit(item.id, item.comment)">
-                  수정
-                </button>
-                <button class="text-action-btn delete-text" @click="handleDelete(item.id)">
-                  삭제
-                </button>
+              <div class="comment">“{{ item.oneLineComment }}”</div>
+              <div v-if="item.authorNickname === store.name" class="my-post-actions">
+                <button class="text-action-btn" @click="startEdit(item.postId, item.oneLineComment)">보기</button>
               </div>
             </div>
           </div>
-          <div class="places">
-            <span v-for="place in item.places" :key="place">{{ place }}</span>
-          </div>
+          <div class="places"><span v-for="tag in item.tags" :key="tag">{{ tag }}</span></div>
           <div class="actions">
-            <button class="like-btn" @click="handleLike(item.id)">♡ {{ item.likes }}</button>
-            <span class="use-count">사용 {{ item.use }}회</span>
-            <button class="import-btn" @click="handleImport(item.id)">내 코스로 가져오기</button>
+            <button class="like-btn" @click="handleLike(item.postId, item.likedByMe)">{{ item.likedByMe ? '♥' : '♡' }} {{ item.courseLikeCount }}</button>
+            <span class="use-count">장소 하트 {{ item.placeHeartCount }}개</span>
           </div>
         </BaseCard>
       </div>

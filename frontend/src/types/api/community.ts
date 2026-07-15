@@ -2,11 +2,13 @@ export interface CommunityPostSummaryDto {
   postId: string
   courseId: string
   courseTitle: string
+  mainDistrict: string
   authorNickname: string
   oneLineComment: string
   courseLikeCount: number
   placeHeartCount: number
   likedByMe: boolean
+  tags: string[]
   publishedAt: string
   rank?: number
 }

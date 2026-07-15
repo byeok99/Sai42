@@ -1,6 +1,7 @@
 import type { ApiHeaders, BaseDto, ErrorResponseDto } from '@/types/api/common'
 
-const DEFAULT_BASE_URL = '/api/v1'
+const DEFAULT_BASE_URL = 'https://sai42-backend.onrender.com/api/v1'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || DEFAULT_BASE_URL
 
 export class ApiClient {
   constructor(private readonly baseUrl: string = DEFAULT_BASE_URL) {}
@@ -44,7 +45,10 @@ export class ApiClient {
       ...(method !== 'GET' && options.body ? { body: JSON.stringify(options.body) } : {}),
     })
 
-    const payload = (await response.json().catch(() => null)) as BaseDto<T> | ErrorResponseDto | null
+    const payload = (await response.json().catch(() => null)) as
+      | BaseDto<T>
+      | ErrorResponseDto
+      | null
 
     if (!response.ok) {
       const errorMessage = payload && 'message' in payload ? payload.message : 'Request failed'
@@ -58,7 +62,13 @@ export class ApiClient {
     return payload as BaseDto<T>
   }
 
-  get<T>(path: string, options?: { headers?: ApiHeaders; params?: Record<string, string | number | boolean | undefined> }): Promise<BaseDto<T>> {
+  get<T>(
+    path: string,
+    options?: {
+      headers?: ApiHeaders
+      params?: Record<string, string | number | boolean | undefined>
+    },
+  ): Promise<BaseDto<T>> {
     return this.request<T>('GET', path, options)
   }
 
@@ -79,4 +89,4 @@ export class ApiClient {
   }
 }
 
-export const apiClient = new ApiClient()
+export const apiClient = new ApiClient(API_BASE_URL)

@@ -24,13 +24,13 @@ function scrollToBottom() {
 
 function handleSend() {
   if (!chatInput.value.trim()) return
-  store.sendChatMessage(chatInput.value)
+  void store.sendChatMessage(chatInput.value)
   chatInput.value = ''
   scrollToBottom()
 }
 
 function handleQuickAction(text: string) {
-  store.sendChatMessage(text)
+  void store.sendChatMessage(text)
   scrollToBottom()
 }
 
@@ -38,9 +38,8 @@ function triggerMapFit() {
   showMapModal.value = true
 }
 
-function confirmCourse() {
-  store.decideCourse()
-  router.push({ name: 'current' })
+async function confirmCourse() {
+  if (await store.decideCourse()) router.push({ name: 'current' })
 }
 
 onMounted(() => {
@@ -73,16 +72,6 @@ onMounted(() => {
         <BaseBadge variant="default">실내 70%</BaseBadge>
       </BaseCard>
 
-      <!-- Festival Card -->
-      <BaseCard class="festival-card">
-        <div>
-          <span class="label">오늘의 축제</span>
-          <strong>유성온천문화축제</strong>
-          <p>유림공원 일원 · 18:00 야간 프로그램</p>
-        </div>
-        <button class="small-btn" @click="store.addFestivalToCourse">코스에 넣기</button>
-      </BaseCard>
-
       <!-- Map Card -->
       <BaseCard class="map-card">
         <div class="map-row">
@@ -104,7 +93,7 @@ onMounted(() => {
             <span class="label">AI가 조정 중</span>
             <h3>{{ store.course.title }}</h3>
           </div>
-          <BaseBadge variant="time">4시간</BaseBadge>
+          <BaseBadge variant="time">{{ store.course.places.length }}곳</BaseBadge>
         </div>
         <div class="stats">
           <span>💗 설렘 4.6</span>

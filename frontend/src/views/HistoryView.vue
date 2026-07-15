@@ -1,23 +1,24 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useDateStore } from '@/stores/dateStore'
 import BaseCard from '@/components/common/BaseCard.vue'
 
 const store = useDateStore()
 
 const averageRating = computed(() => {
-  if (store.history.length === 0) return '0.0'
-  const sum = store.history.reduce((acc, curr) => acc + curr.rating, 0)
-  return (sum / store.history.length).toFixed(1)
+  if (store.history.length === 0) return '0'
+  return String(store.history.reduce((acc, curr) => acc + curr.heartedPlaceCount, 0))
 })
 
 const totalPlacesVisited = computed(() => {
-  return store.history.reduce((acc, curr) => acc + curr.places.length, 0)
+  return store.history.reduce((acc, curr) => acc + curr.totalPlaceCount, 0)
 })
 
 function showInfo() {
-  store.triggerToast('월별·테마별 필터가 들어갈 자리예요')
+  store.triggerToast('완료한 데이트 코스를 불러왔어요.')
 }
+
+onMounted(() => { void store.loadHistory() })
 </script>
 
 <template>
@@ -43,31 +44,28 @@ function showInfo() {
         </div>
         <div>
           <strong>{{ averageRating }}</strong>
-          <span>평균 설렘</span>
+          <span>남긴 장소 하트</span>
         </div>
       </BaseCard>
 
       <!-- Month Header -->
       <div class="month-header">
-        <strong>2026년 7월</strong>
+        <strong>완료한 데이트</strong>
         <span>우리의 기록</span>
       </div>
 
       <!-- History List -->
       <div class="hlist">
-        <BaseCard v-for="(item, idx) in store.history" :key="idx" class="history-card">
+        <BaseCard v-for="item in store.history" :key="item.courseId" class="history-card">
           <div class="hhead">
-            <div class="date-badge">{{ item.date }}</div>
+            <div class="date-badge">{{ item.date.slice(-2) }}</div>
             <div>
-              <span class="label">7월 · {{ '★'.repeat(item.rating) }}</span>
-              <h3>{{ item.title }}</h3>
-              <p>{{ item.places.length }}개 장소 · 대전</p>
+              <span class="label">{{ item.mainDistrict }}</span>
+              <h3>{{ item.courseTitle }}</h3>
+              <p>{{ item.totalPlaceCount }}개 장소 · 하트 {{ item.heartedPlaceCount }}개</p>
             </div>
           </div>
-          <div class="hcomment">“{{ item.comment }}”</div>
-          <div class="places">
-            <span v-for="place in item.places" :key="place">{{ place }}</span>
-          </div>
+          <div class="hcomment">“{{ item.oneLineComment ?? '남긴 코멘트가 없어요.' }}”</div>
         </BaseCard>
       </div>
     </div>

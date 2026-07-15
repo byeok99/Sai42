@@ -13,6 +13,12 @@ const router = useRouter()
 const chatInput = ref('')
 const messagesContainer = ref<HTMLDivElement | null>(null)
 const showMapModal = ref(false)
+const showProfileMenu = ref(false)
+
+function handleLogout() {
+  store.logout()
+  router.push({ name: 'entrance' })
+}
 
 function scrollToBottom() {
   nextTick(() => {
@@ -44,6 +50,7 @@ function confirmCourse() {
 }
 
 onMounted(() => {
+  store.fetchChatSession()
   scrollToBottom()
 })
 </script>
@@ -55,22 +62,39 @@ onMounted(() => {
         <p class="section-label">AI DATE MAKER</p>
         <h2>사이봇과 코스 만들기</h2>
       </div>
-      <button class="profile-chip" @click="store.showSurvey = true">
-        💞 {{ store.name || '우리 취향' }}
-      </button>
+      <div class="profile-wrapper">
+        <button class="profile-chip" @click="showProfileMenu = !showProfileMenu">
+          💞 {{ store.name || '우리 취향' }}
+        </button>
+        <div v-if="showProfileMenu" class="profile-menu">
+          <button @click="store.showSurvey = true; showProfileMenu = false">취향 수정</button>
+          <button @click="handleLogout" class="logout-item">로그아웃</button>
+        </div>
+      </div>
+      <!-- click outside to close menu -->
+      <div v-if="showProfileMenu" class="menu-overlay" @click="showProfileMenu = false"></div>
     </header>
 
     <div class="scroll-area">
       <!-- Weather Card -->
-      <BaseCard class="weather-card">
+      <BaseCard class="weather-card" v-if="store.course.weather">
+        <div class="weather-left">
+          <span class="emoji">{{ store.course.weather.condition === 'RAIN' || store.course.weather.condition === 'LIGHT_RAIN' ? '🌦️' : '☀️' }}</span>
+          <div>
+            <strong>{{ store.course.weather.district || '대전' }} {{ store.course.weather.temperatureMin }}°C</strong>
+            <p>{{ store.course.weather.summary || '날씨 정보가 업데이트되었습니다' }}</p>
+          </div>
+        </div>
+        <BaseBadge variant="default">{{ store.course.weather.recommendation?.message || '실내 70%' }}</BaseBadge>
+      </BaseCard>
+      <BaseCard class="weather-card" v-else>
         <div class="weather-left">
           <span class="emoji">🌦️</span>
           <div>
-            <strong>대전 23°C</strong>
-            <p>오후 4시부터 약한 비</p>
+            <strong>대전 날씨 불러오는 중...</strong>
+            <p>조금만 기다려주세요</p>
           </div>
         </div>
-        <BaseBadge variant="default">실내 70%</BaseBadge>
       </BaseCard>
 
       <!-- Festival Card -->
@@ -207,15 +231,61 @@ onMounted(() => {
 }
 
 .profile-chip {
-  padding: 9px 11px;
+  padding: 8px 12px;
   border-radius: 14px;
-  background: #fff;
-  box-shadow: var(--shadow);
-  font-size: 11px;
+  background: #ffe3e7;
+  color: #d85169;
+  font-size: 10px;
   font-weight: 800;
   border: 0;
-  color: var(--ink);
   cursor: pointer;
+  position: relative;
+  z-index: 12;
+}
+
+.profile-wrapper {
+  position: relative;
+}
+
+.profile-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 8px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 12;
+  min-width: 100px;
+}
+
+.profile-menu button {
+  padding: 12px 16px;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #f0f0f0;
+  cursor: pointer;
+  color: #333;
+}
+
+.profile-menu button:last-child {
+  border-bottom: none;
+}
+
+.profile-menu .logout-item {
+  color: #d85169;
+}
+
+.menu-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 11;
 }
 
 .weather-card {

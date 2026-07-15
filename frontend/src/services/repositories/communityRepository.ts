@@ -15,35 +15,35 @@ export interface CommunityRepository {
 }
 
 export class CommunityRepositoryImpl implements CommunityRepository {
-  async listPosts(params) {
+  async listPosts(params?: { sort?: 'POPULAR' | 'LATEST' }) {
     return apiClient.get<CommunityPostSummaryDto[]>(apiEndpoints.communityPosts, { params })
   }
 
-  async getPost(postId) {
+  async getPost(postId: string) {
     return apiClient.get<CommunityPostDetailDto>(apiEndpoints.communityPostDetail(postId))
   }
 
-  async createPost(payload, headers) {
+  async createPost(payload: CommunityPostCreateRequestDto, headers: { 'X-Profile-Id': string; 'X-User-Password': string }) {
     return apiClient.post<CommunityPostDetailDto>(apiEndpoints.communityPosts, payload, { headers })
   }
 
-  async updatePost(postId, payload, headers) {
+  async updatePost(postId: string, payload: CommunityPostUpdateRequestDto, headers: { 'X-Profile-Id': string; 'X-User-Password': string }) {
     return apiClient.patch<CommunityPostDetailDto>(apiEndpoints.communityPostDetail(postId), payload, { headers })
   }
 
-  async deletePost(postId, headers) {
+  async deletePost(postId: string, headers: { 'X-Profile-Id': string; 'X-User-Password': string }) {
     return apiClient.delete(apiEndpoints.communityPostDetail(postId), { headers })
   }
 
-  async likePost(postId, headers) {
+  async likePost(postId: string, headers: { 'X-Profile-Id': string; 'X-User-Password': string }) {
     return apiClient.put<CommunityPostLikeDto>(apiEndpoints.communityPostLike(postId), undefined, { headers })
   }
 
-  async unlikePost(postId, headers) {
+  async unlikePost(postId: string, headers: { 'X-Profile-Id': string; 'X-User-Password': string }) {
     return apiClient.delete<CommunityPostLikeDto>(apiEndpoints.communityPostLike(postId), { headers })
   }
 
-  async startPost(postId, headers) {
+  async startPost(postId: string, headers: { 'X-Profile-Id': string; 'X-User-Password': string }) {
     return apiClient.post(apiEndpoints.communityPostStart(postId), undefined, { headers })
   }
 }

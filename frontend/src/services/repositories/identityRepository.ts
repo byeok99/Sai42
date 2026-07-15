@@ -15,15 +15,15 @@ export class IdentityRepositoryImpl implements IdentityRepository {
     return apiClient.get<NicknameSuggestionDto[]>(apiEndpoints.nicknameSuggestions)
   }
 
-  async createProfile(payload) {
+  async createProfile(payload: any) {
     return apiClient.post<ProfileMeDto>(apiEndpoints.profiles, payload)
   }
 
-  async verifyProfile(payload) {
+  async verifyProfile(payload: any) {
     return apiClient.post<ProfileMeDto>(apiEndpoints.verify, payload)
   }
 
-  async getMe(headers) {
+  async getMe(headers: any) {
     return apiClient.get<ProfileMeDto>(apiEndpoints.me, { headers })
   }
 }

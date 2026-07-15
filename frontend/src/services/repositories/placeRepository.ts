@@ -10,15 +10,15 @@ export interface PlaceRepository {
 }
 
 export class PlaceRepositoryImpl implements PlaceRepository {
-  async listPlaces(params) {
+  async listPlaces(params: any) {
     return apiClient.get<PlaceSummaryDto[]>(apiEndpoints.places, { params })
   }
 
-  async getPlaceDetail(contentId) {
+  async getPlaceDetail(contentId: string) {
     return apiClient.get<PlaceDetailDto>(apiEndpoints.placeDetail(contentId))
   }
 
-  async getNearbyPlaces(contentId) {
+  async getNearbyPlaces(contentId: string) {
     return apiClient.get<PlaceSummaryDto[]>(apiEndpoints.placeNearby(contentId))
   }
 }

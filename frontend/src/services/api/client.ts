@@ -1,6 +1,8 @@
 import type { ApiHeaders, BaseDto, ErrorResponseDto } from '@/types/api/common'
 
-const DEFAULT_BASE_URL = '/api/v1'
+const DEFAULT_BASE_URL = import.meta.env.VITE_API_BASE_URL 
+  ? `${import.meta.env.VITE_API_BASE_URL}/api/v1`
+  : '/api/v1'
 
 export class ApiClient {
   constructor(private readonly baseUrl: string = DEFAULT_BASE_URL) {}

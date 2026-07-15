@@ -67,6 +67,18 @@ function handleDelete(id: string) {
     store.deleteRankItem(id)
   }
 }
+
+import { onMounted } from 'vue'
+onMounted(() => {
+  store.fetchRankings()
+})
+
+function handleScroll(e: Event) {
+  const target = e.target as HTMLElement
+  if (target.scrollTop + target.clientHeight >= target.scrollHeight - 10) {
+    store.fetchRankings()
+  }
+}
 </script>
 
 <template>
@@ -79,7 +91,7 @@ function handleDelete(id: string) {
       <button class="help-btn" @click="showHelp">?</button>
     </header>
 
-    <div class="scroll-area">
+    <div class="scroll-area" @scroll="handleScroll">
       <!-- Master Banner Card -->
       <BaseCard class="master-card">
         <span class="banner-label">이번 주 데이트 마스터</span>

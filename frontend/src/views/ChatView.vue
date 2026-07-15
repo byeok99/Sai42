@@ -163,11 +163,8 @@ onMounted(() => {
           <h3>전체 데이트 코스</h3>
           <button class="close-x-btn" @click="showMapModal = false">&times;</button>
         </div>
-        <div class="modal-map-container">
+        <div class="modal-map-container" style="margin-bottom: 0">
           <LeafletMap :coords="store.course.coords" :places="store.course.places" />
-        </div>
-        <div class="modalacts">
-          <BaseButton variant="secondary" full @click="showMapModal = false">닫기</BaseButton>
         </div>
       </div>
     </div>
@@ -637,7 +634,7 @@ onMounted(() => {
   flex: 1;
   border-radius: 16px;
   overflow: hidden;
-  margin-bottom: 12px;
+  margin-bottom: 0;
   border: 1px solid var(--line);
 }
 </style>

@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useDateStore } from '@/stores/dateStore'
 import BaseCard from '@/components/common/BaseCard.vue'
 import BaseButton from '@/components/common/BaseButton.vue'
+import LeafletMap from '@/components/map/LeafletMap.vue'
 
 const store = useDateStore()
 const router = useRouter()
@@ -69,14 +70,11 @@ function navigateToChat() {
 
         <!-- Minimap Wrapper -->
         <BaseCard class="minimap">
-          <div
-            v-for="(place, idx) in store.activeCourse.places"
-            :key="place"
-            class="marker"
-            :style="{ left: `${18 + idx * 25}%`, top: `${26 + (idx % 2) * 28}%` }"
-          >
-            <i>{{ idx + 1 }}</i>
-          </div>
+          <LeafletMap
+            v-if="store.activeCourse"
+            :coords="store.activeCourse.coords"
+            :places="store.activeCourse.places"
+          />
         </BaseCard>
 
         <!-- Places List -->

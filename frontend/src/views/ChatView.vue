@@ -5,13 +5,13 @@ import { useDateStore } from '@/stores/dateStore'
 import BaseCard from '@/components/common/BaseCard.vue'
 import BaseButton from '@/components/common/BaseButton.vue'
 import BaseBadge from '@/components/common/BaseBadge.vue'
+import LeafletMap from '@/components/map/LeafletMap.vue'
 
 const store = useDateStore()
 const router = useRouter()
 
 const chatInput = ref('')
 const messagesContainer = ref<HTMLDivElement | null>(null)
-const bouncedMarker = ref<number | null>(null)
 
 function scrollToBottom() {
   nextTick(() => {
@@ -33,20 +33,7 @@ function handleQuickAction(text: string) {
   scrollToBottom()
 }
 
-function clickMarker(idx: number, title: string) {
-  bouncedMarker.value = idx
-  setTimeout(() => {
-    bouncedMarker.value = null
-  }, 500)
-  store.triggerToast(title)
-}
-
 function triggerMapFit() {
-  store.course.coords.forEach((_, idx) => {
-    setTimeout(() => {
-      clickMarker(idx, store.course.places[idx] || '')
-    }, idx * 80)
-  })
   store.triggerToast('전체 코스를 한눈에 보여드릴게요')
 }
 
@@ -105,27 +92,7 @@ onMounted(() => {
           <button class="small-btn" @click="triggerMapFit">전체보기</button>
         </div>
         <div class="map-container">
-          <span class="road r1"></span>
-          <span class="road r2"></span>
-          <div class="markers-wrapper">
-            <button
-              v-for="(coord, idx) in store.course.coords"
-              :key="idx"
-              :class="['marker', { bounce: bouncedMarker === idx }]"
-              :style="{ left: `${coord[0]}%`, top: `${coord[1]}%` }"
-              @click="clickMarker(idx, store.course.places[idx] || '')"
-            >
-              <i>{{ idx + 1 }}</i>
-            </button>
-            <button
-              v-if="store.course.fest"
-              class="marker fest"
-              style="left: 39%; top: 32%"
-              @click="store.triggerToast('유성온천문화축제')"
-            >
-              <i>F</i>
-            </button>
-          </div>
+          <LeafletMap :coords="store.course.coords" :places="store.course.places" />
         </div>
       </BaseCard>
 

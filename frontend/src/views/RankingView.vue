@@ -41,6 +41,32 @@ function handleImport(id: string) {
 function showHelp() {
   store.triggerToast('이용 횟수와 좋아요를 합산해 마스터를 선정해요')
 }
+
+const editingId = ref<string | null>(null)
+const editCommentText = ref('')
+
+function startEdit(id: string, comment: string) {
+  editingId.value = id
+  editCommentText.value = comment
+}
+
+function cancelEdit() {
+  editingId.value = null
+  editCommentText.value = ''
+}
+
+function saveEdit(id: string) {
+  if (!editCommentText.value.trim()) return
+  store.updateRankComment(id, editCommentText.value)
+  editingId.value = null
+  editCommentText.value = ''
+}
+
+function handleDelete(id: string) {
+  if (confirm('이 포스트를 삭제하시겠습니까?')) {
+    store.deleteRankItem(id)
+  }
+}
 </script>
 
 <template>
@@ -87,7 +113,31 @@ function showHelp() {
               </div>
             </div>
           </div>
-          <div class="comment">“{{ item.comment }}”</div>
+          <!-- Comment Container -->
+          <div class="comment-container">
+            <div v-if="editingId === item.id" class="edit-comment-row">
+              <input
+                v-model="editCommentText"
+                class="edit-input"
+                @keydown.enter="saveEdit(item.id)"
+              />
+              <div class="edit-actions">
+                <button class="text-action-btn save-btn" @click="saveEdit(item.id)">저장</button>
+                <button class="text-action-btn" @click="cancelEdit">취소</button>
+              </div>
+            </div>
+            <div v-else class="comment-body">
+              <div class="comment">“{{ item.comment }}”</div>
+              <div v-if="item.creator === store.name" class="my-post-actions">
+                <button class="text-action-btn" @click="startEdit(item.id, item.comment)">
+                  수정
+                </button>
+                <button class="text-action-btn delete-text" @click="handleDelete(item.id)">
+                  삭제
+                </button>
+              </div>
+            </div>
+          </div>
           <div class="places">
             <span v-for="place in item.places" :key="place">{{ place }}</span>
           </div>
@@ -318,5 +368,67 @@ function showHelp() {
 .import-btn {
   background: #eee8ff;
   color: #66568d;
+}
+
+/* My Post Comments Edit/Delete Actions */
+.comment-container {
+  margin-top: 11px;
+}
+
+.comment-body {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.my-post-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.text-action-btn {
+  font-size: 8px;
+  font-weight: 800;
+  padding: 4px 6px;
+  background: #f3eceb;
+  color: #66575a;
+  border-radius: 6px;
+  border: 0;
+  cursor: pointer;
+}
+
+.text-action-btn.delete-text {
+  background: #ffebeb;
+  color: #c84d61;
+}
+
+.edit-comment-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+}
+
+.edit-input {
+  flex: 1;
+  height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 8px;
+  font-size: 10px;
+  background: #fffdfa;
+  outline: 0;
+}
+
+.edit-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.text-action-btn.save-btn {
+  background: #e1ffd4;
+  color: #2b6118;
 }
 </style>

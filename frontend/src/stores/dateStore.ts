@@ -463,6 +463,21 @@ export const useDateStore = defineStore('dateStore', () => {
     }
   }
 
+  function deleteRankItem(id: string) {
+    rankings.value = rankings.value.filter((r) => r.id !== id)
+    saveToStorage()
+    triggerToast('코스가 삭제되었습니다. 🗑️')
+  }
+
+  function updateRankComment(id: string, newComment: string) {
+    const item = rankings.value.find((r) => r.id === id)
+    if (item) {
+      item.comment = newComment
+      saveToStorage()
+      triggerToast('한줄 코멘트가 수정되었습니다. ✏️')
+    }
+  }
+
   return {
     authMode,
     name,
@@ -495,5 +510,7 @@ export const useDateStore = defineStore('dateStore', () => {
     submitReview,
     importRankedCourse,
     likeRankItem,
+    deleteRankItem,
+    updateRankComment,
   }
 })

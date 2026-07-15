@@ -72,3 +72,7 @@ python -c "from app.main import app; print(app.title)"
 ## 환경변수
 
 각 애플리케이션에서 `.env.example`을 `.env`로 복사한 뒤 로컬 값만 입력합니다. `.env`는 Git에 포함되지 않습니다.
+
+AI 코스 생성과 채팅 수정을 테스트하려면 `backend/.env`의 `OPENAI_API_KEY`에 서버용 OpenAI API
+키를 입력합니다. `OPENAI_MODEL`, timeout, 재시도, 후보 수는 `.env.example`의 기본값으로 동작하며
+필요할 때만 조정합니다. 서버 재시작 후 Swagger의 `/chat/sessions` 흐름을 테스트할 수 있습니다.

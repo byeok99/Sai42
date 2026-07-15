@@ -41,10 +41,14 @@ app/<domain>/
 경계 상자를 먼저 조회한 후 애플리케이션 레이어에서 Haversine 거리로 재검증하며, 장소 응답은
 추적 DB의 추천 가능 공공데이터만 사용합니다. `course`는 현재 데이트 코스의 조회, 순차 장소
 완료, 장소 하트, 종료를 담당하며 종료와 `community_posts` 자동 공개를 하나의 트랜잭션으로
-처리합니다. `Idempotency-Key`가 있는 종료 요청은 최초 공통 응답을 저장해 재사용합니다. Chat AI,
-CourseDraft API는 아직 구현하지 않습니다. `weather`는 Open-Meteo 시간별 예보를 공급자 독립 DTO로
-정규화하며 장애 시 사용 가능한 폴백 응답을 제공합니다. `community`, `ranking`, `history`는 완료
-코스 스냅샷을 조회하고 좋아요를 집계하거나 새 활성 코스로 복사합니다.
+처리합니다. `Idempotency-Key`가 있는 종료 요청은 최초 공통 응답을 저장해 재사용합니다. `chat`은
+조건과 날씨를 바탕으로 SQLite 추천 가능 장소 후보를 조회한 뒤 그 후보만 OpenAI Responses API에
+전달합니다. Pydantic 구조화 출력의 장소 ID를 DB에서 다시 검증한 후 초안을 저장하므로 모델이 DB에
+없는 장소를 코스에 추가할 수 없습니다. 자연어·빠른 수정은 전체 초안을 재생성하고 version으로
+동시 수정을 방지하며, 확정 시 실제 장소 스냅샷을 활성 코스로 저장합니다. `weather`는 Open-Meteo
+시간별 예보를 공급자 독립 DTO로 정규화하며 장애 시 사용 가능한 폴백 응답을 제공합니다.
+`community`, `ranking`, `history`는 완료 코스 스냅샷을 조회하고 좋아요를 집계하거나 새 활성 코스로
+복사합니다.
 
 ## 데이터와 외부 서비스
 
@@ -52,5 +56,6 @@ CourseDraft API는 아직 구현하지 않습니다. `weather`는 Open-Meteo 시
 `backend/data/sai42.db`만 예외적으로 추적하며, 한국관광공사 TourAPI 장소 데이터는
 `backend/scripts/import_places.py`로 검증 후 적재합니다. Render에서는 이 DB를 임시 로컬
 파일로 사용하므로 런타임 변경은 재배포나 재시작 시 커밋된 상태로 초기화됩니다. Open-Meteo
-무료 API는 별도 키 없이 서버에서 호출합니다. OpenAI와 Kakao Maps 연동은 환경변수 이름만
-예약하며 실제 호출은 구현하지 않습니다.
+무료 API는 별도 키 없이 서버에서 호출합니다. OpenAI API 키는 서버 환경변수로만 주입하고 응답은
+외부 도구 호출 없이 구조화 출력으로 받습니다. 벡터 DB와 임베딩은 사용하지 않습니다. Kakao Maps
+연동은 환경변수 이름만 예약하며 실제 호출은 구현하지 않습니다.

@@ -85,6 +85,9 @@ class CommonApiTest(unittest.IsolatedAsyncioTestCase):
                 "/api/v1/auth/profiles",
                 "/api/v1/auth/verify",
                 "/api/v1/profiles/me",
+                "/api/v1/places",
+                "/api/v1/places/{contentId}",
+                "/api/v1/places/{contentId}/nearby",
             },
         )
         schemas = schema["components"]["schemas"]

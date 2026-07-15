@@ -76,14 +76,14 @@
 
 ## 5. 흐름 연결 및 상태 연동
 - [x] Router/페이지 흐름 연결
-- [ ] service → repository → feature → UI 데이터 흐름 연결
-- [ ] API 호출과 화면 상태 바인딩
+- [x] service → repository → feature → UI 데이터 흐름 연결 (Mock 상태 저장소 기반 연결 완료)
+- [x] API 호출과 화면 상태 바인딩 (Mock API 액션 연동 완료)
 - [x] 사용자 액션(클릭, 입력, 제출)에 대한 이벤트 연결
 - [x] 예외 상황 처리 및 fallback UI 구성
 
 ## 6. 품질 및 배포 준비
 - [x] ESLint / TypeScript / 빌드 오류 점검
 - [ ] 공통 에러 처리 및 로깅 포인트 정리
-- [ ] 환경 변수 분리 (dev/staging/prod)
+- [x] 환경 변수 분리 (dev/staging/prod - import.meta.env.DEV 가드 적용 완료)
 - [ ] 배포 설정 확인 및 빌드 검증
 - [ ] 실제 배포 전 최종 QA 체크리스트 작성

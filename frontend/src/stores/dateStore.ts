@@ -11,6 +11,7 @@ export interface Course {
 export interface ActiveCourse {
   title: string
   places: string[]
+  coords: [number, number][]
   likes: Record<number, boolean>
 }
 
@@ -55,12 +56,13 @@ export const useDateStore = defineStore('dateStore', () => {
 
   // Current Working Course (in chatbot)
   const course = ref<Course>({
-    title: '비 오는 날, 포근한 문화 데이트',
-    places: ['국립중앙과학관', '대전시립미술관', '만년동 저녁식사'],
+    title: '한양대 부근 가을바람 산책 데이트',
+    places: ['한양대학교 서울캠퍼스', '왕십리역 엔터식스', '성수동 감성 카페거리', '서울숲 산책로'],
     coords: [
-      [20, 23],
-      [52, 56],
-      [73, 71],
+      [37.5564, 127.0445],
+      [37.5615, 127.0375],
+      [37.5445, 127.056],
+      [37.5443, 127.0374],
     ],
     fest: false,
   })
@@ -318,37 +320,39 @@ export const useDateStore = defineStore('dateStore', () => {
     const search = text.toLowerCase()
 
     if (search.includes('카페')) {
-      course.value.places[1] = '도룡동 감성 카페'
-      course.value.title = '비 오는 날, 커피 향 가득한 데이트'
+      course.value.places[2] = '성수동 블루보틀 카페'
+      course.value.coords[2] = [37.548, 127.044]
+      course.value.title = '한양대 산책과 향기로운 커피 데이트'
       botResponse =
-        '두 번째 장소를 <b>도룡동 감성 카페</b>로 바꿨어요. 대화할 시간이 더 길어집니다 ☕'
+        '세 번째 장소를 <b>성수동 블루보틀 카페</b>로 바꿨어요. 대화할 시간이 더 길어집니다 ☕'
     } else if (search.includes('야경')) {
-      if (!course.value.places.some((p) => p.includes('엑스포다리'))) {
-        course.value.places.push('엑스포다리 야경')
-        course.value.coords.push([58, 36])
+      if (!course.value.places.some((p) => p.includes('응봉산'))) {
+        course.value.places.push('응봉산 팔각정 야경')
+        course.value.coords.push([37.5488, 127.0315])
       }
-      course.value.title = '문화부터 야경까지, 반짝이는 데이트'
-      botResponse = '마지막에 <b>엑스포다리 야경</b>을 추가했어요 🌙'
+      course.value.title = '서울숲부터 야경까지, 로맨틱 데이트'
+      botResponse = '마지막에 <b>응봉산 팔각정 야경</b>을 추가했어요 🌙'
     } else if (search.includes('거리') || search.includes('동선')) {
       course.value = {
-        title: '짧게 이동하고 오래 머무는 도룡 코스',
-        places: ['국립중앙과학관', '도룡동 카페', '엑스포다리'],
+        title: '짧게 이동하고 오래 머무는 사근동 코스',
+        places: ['한양대학교 서울캠퍼스', '사근동 벽화골목', '왕십리역 맛집거리'],
         coords: [
-          [24, 25],
-          [44, 42],
-          [58, 36],
+          [37.5564, 127.0445],
+          [37.56, 127.0475],
+          [37.5615, 127.0375],
         ],
         fest: false,
       }
-      botResponse = '장소를 <b>도룡동 주변</b>으로 모았어요. 이동보다 대화에 시간을 써보세요.'
+      botResponse =
+        '장소를 <b>사근동 및 왕십리 주변</b>으로 모았어요. 이동보다 대화에 시간을 써보세요.'
     } else if (search.includes('비') || search.includes('실내')) {
       course.value = {
-        title: '우산을 덜 펴는 완전 실내 데이트',
-        places: ['국립중앙과학관', '대전시립미술관', '대전신세계 Art&Science'],
+        title: '우산을 덜 펴는 완전 실내 한양대 코스',
+        places: ['왕십리 CGV', '엔터식스 몰', '한양대 백남학술정보관'],
         coords: [
-          [20, 23],
-          [52, 56],
-          [67, 41],
+          [37.5615, 127.0375],
+          [37.561, 127.038],
+          [37.5564, 127.0445],
         ],
         fest: false,
       }
@@ -366,11 +370,11 @@ export const useDateStore = defineStore('dateStore', () => {
       return
     }
     course.value.fest = true
-    course.value.places.push('유성온천문화축제')
-    course.value.coords.push([39, 32])
+    course.value.places.push('뚝섬한강공원 드론라이트쇼')
+    course.value.coords.push([37.529, 127.068])
     messages.value.push({
       role: 'bot',
-      content: '오늘 열리는 <b>유성온천문화축제</b>를 마지막 코스에 넣었어요 🎉',
+      content: '오늘 열리는 <b>뚝섬한강공원 드론라이트쇼</b>를 마지막 코스에 넣었어요 🎉',
     })
     triggerToast('축제를 코스에 추가했어요')
   }
@@ -380,6 +384,7 @@ export const useDateStore = defineStore('dateStore', () => {
     activeCourse.value = {
       title: course.value.title,
       places: [...course.value.places],
+      coords: [...course.value.coords],
       likes: {},
     }
     activeProgress.value = 0
@@ -443,7 +448,7 @@ export const useDateStore = defineStore('dateStore', () => {
     course.value = {
       title: item.title,
       places: [...item.places],
-      coords: item.places.map((_, i) => [20 + i * 23, 24 + i * 16]),
+      coords: item.places.map((_, i) => [37.5564 + i * 0.003, 127.0445 + i * 0.003]),
       fest: false,
     }
     triggerToast('이 코스를 사이봇으로 가져왔어요')
@@ -455,6 +460,21 @@ export const useDateStore = defineStore('dateStore', () => {
       item.likes++
       saveToStorage()
       triggerToast('좋아요가 전해졌어요 💗')
+    }
+  }
+
+  function deleteRankItem(id: string) {
+    rankings.value = rankings.value.filter((r) => r.id !== id)
+    saveToStorage()
+    triggerToast('코스가 삭제되었습니다. 🗑️')
+  }
+
+  function updateRankComment(id: string, newComment: string) {
+    const item = rankings.value.find((r) => r.id === id)
+    if (item) {
+      item.comment = newComment
+      saveToStorage()
+      triggerToast('한줄 코멘트가 수정되었습니다. ✏️')
     }
   }
 
@@ -490,5 +510,7 @@ export const useDateStore = defineStore('dateStore', () => {
     submitReview,
     importRankedCourse,
     likeRankItem,
+    deleteRankItem,
+    updateRankComment,
   }
 })

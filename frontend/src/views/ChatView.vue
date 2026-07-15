@@ -5,13 +5,14 @@ import { useDateStore } from '@/stores/dateStore'
 import BaseCard from '@/components/common/BaseCard.vue'
 import BaseButton from '@/components/common/BaseButton.vue'
 import BaseBadge from '@/components/common/BaseBadge.vue'
+import LeafletMap from '@/components/map/LeafletMap.vue'
 
 const store = useDateStore()
 const router = useRouter()
 
 const chatInput = ref('')
 const messagesContainer = ref<HTMLDivElement | null>(null)
-const bouncedMarker = ref<number | null>(null)
+const showMapModal = ref(false)
 
 function scrollToBottom() {
   nextTick(() => {
@@ -33,21 +34,8 @@ function handleQuickAction(text: string) {
   scrollToBottom()
 }
 
-function clickMarker(idx: number, title: string) {
-  bouncedMarker.value = idx
-  setTimeout(() => {
-    bouncedMarker.value = null
-  }, 500)
-  store.triggerToast(title)
-}
-
 function triggerMapFit() {
-  store.course.coords.forEach((_, idx) => {
-    setTimeout(() => {
-      clickMarker(idx, store.course.places[idx] || '')
-    }, idx * 80)
-  })
-  store.triggerToast('전체 코스를 한눈에 보여드릴게요')
+  showMapModal.value = true
 }
 
 function confirmCourse() {
@@ -105,27 +93,7 @@ onMounted(() => {
           <button class="small-btn" @click="triggerMapFit">전체보기</button>
         </div>
         <div class="map-container">
-          <span class="road r1"></span>
-          <span class="road r2"></span>
-          <div class="markers-wrapper">
-            <button
-              v-for="(coord, idx) in store.course.coords"
-              :key="idx"
-              :class="['marker', { bounce: bouncedMarker === idx }]"
-              :style="{ left: `${coord[0]}%`, top: `${coord[1]}%` }"
-              @click="clickMarker(idx, store.course.places[idx] || '')"
-            >
-              <i>{{ idx + 1 }}</i>
-            </button>
-            <button
-              v-if="store.course.fest"
-              class="marker fest"
-              style="left: 39%; top: 32%"
-              @click="store.triggerToast('유성온천문화축제')"
-            >
-              <i>F</i>
-            </button>
-          </div>
+          <LeafletMap :coords="store.course.coords" :places="store.course.places" static />
         </div>
       </BaseCard>
 
@@ -187,6 +155,22 @@ onMounted(() => {
     <!-- Decide Fixed Bottom Panel -->
     <div class="decide-action-bar">
       <BaseButton variant="primary" full @click="confirmCourse"> 이 코스로 결정하기 💗 </BaseButton>
+    </div>
+    <!-- Fullscreen Map Modal -->
+    <div
+      v-if="showMapModal"
+      class="overlay open map-modal-overlay"
+      @click.self="showMapModal = false"
+    >
+      <div class="modal map-modal">
+        <div class="modal-header">
+          <h3>전체 데이트 코스</h3>
+          <button class="close-x-btn" @click="showMapModal = false">&times;</button>
+        </div>
+        <div class="modal-map-container" style="margin-bottom: 0">
+          <LeafletMap :coords="store.course.coords" :places="store.course.places" />
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -597,5 +581,69 @@ onMounted(() => {
   bottom: 74px;
   padding: 10px 15px 13px;
   background: linear-gradient(transparent, rgba(255, 250, 245, 0.97) 38%);
+}
+
+.map-modal-overlay {
+  position: absolute;
+  z-index: 100;
+  inset: 0;
+  background: rgba(53, 42, 45, 0.45);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.map-modal {
+  width: 100%;
+  max-width: 440px;
+  height: 62vh;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 24px;
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  flex: 1;
+  text-align: center;
+  padding-left: 24px;
+}
+
+.close-x-btn {
+  font-size: 24px;
+  font-weight: 300;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  line-height: 1;
+  padding: 4px 8px;
+  transition: color 0.2s;
+}
+
+.close-x-btn:hover {
+  color: var(--ink);
+}
+
+.modal-map-container {
+  flex: 1;
+  border-radius: 16px;
+  overflow: hidden;
+  margin-bottom: 0;
+  border: 1px solid var(--line);
 }
 </style>

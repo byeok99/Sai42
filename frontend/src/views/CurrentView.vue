@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDateStore } from '@/stores/dateStore'
 import BaseCard from '@/components/common/BaseCard.vue'
 import BaseButton from '@/components/common/BaseButton.vue'
+import LeafletMap from '@/components/map/LeafletMap.vue'
+
+const showMapModal = ref(false)
 
 const store = useDateStore()
 const router = useRouter()
@@ -68,15 +71,14 @@ function navigateToChat() {
         </div>
 
         <!-- Minimap Wrapper -->
-        <BaseCard class="minimap">
-          <div
-            v-for="(place, idx) in store.activeCourse.places"
-            :key="place"
-            class="marker"
-            :style="{ left: `${18 + idx * 25}%`, top: `${26 + (idx % 2) * 28}%` }"
-          >
-            <i>{{ idx + 1 }}</i>
-          </div>
+        <BaseCard class="minimap-wrapper">
+          <LeafletMap
+            v-if="store.activeCourse"
+            :coords="store.activeCourse.coords"
+            :places="store.activeCourse.places"
+            static
+          />
+          <button class="small-btn map-zoom-btn" @click="showMapModal = true">전체보기</button>
         </BaseCard>
 
         <!-- Places List -->
@@ -124,6 +126,26 @@ function navigateToChat() {
           데이트 종료하기
         </BaseButton>
         <p class="help-text">종료 후 한 줄 코멘트를 남기면 랭킹보드에 공유돼요.</p>
+      </div>
+    </div>
+    <!-- Fullscreen Map Modal -->
+    <div
+      v-if="showMapModal"
+      class="overlay open map-modal-overlay"
+      @click.self="showMapModal = false"
+    >
+      <div class="modal map-modal">
+        <div class="modal-header">
+          <h3>진행 중인 데이트 코스</h3>
+          <button class="close-x-btn" @click="showMapModal = false">&times;</button>
+        </div>
+        <div class="modal-map-container" style="margin-bottom: 0">
+          <LeafletMap
+            v-if="store.activeCourse"
+            :coords="store.activeCourse.coords"
+            :places="store.activeCourse.places"
+          />
+        </div>
       </div>
     </div>
   </div>
@@ -364,5 +386,94 @@ function navigateToChat() {
   color: var(--muted);
   font-size: 10px;
   margin-top: 10px;
+}
+
+.minimap-wrapper {
+  height: 130px;
+  margin-top: 11px;
+  position: relative;
+  overflow: hidden;
+  border-radius: 21px;
+  box-shadow: var(--shadow);
+}
+
+.map-zoom-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 10;
+  min-height: 28px;
+  padding: 0 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  color: #db536a;
+  font-size: 9px;
+  font-weight: 800;
+  border: 0;
+}
+
+.map-modal-overlay {
+  position: absolute;
+  z-index: 100;
+  inset: 0;
+  background: rgba(53, 42, 45, 0.45);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.map-modal {
+  width: 100%;
+  max-width: 440px;
+  height: 62vh;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 24px;
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  flex: 1;
+  text-align: center;
+  padding-left: 24px;
+}
+
+.close-x-btn {
+  font-size: 24px;
+  font-weight: 300;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  line-height: 1;
+  padding: 4px 8px;
+  transition: color 0.2s;
+}
+
+.close-x-btn:hover {
+  color: var(--ink);
+}
+
+.modal-map-container {
+  flex: 1;
+  border-radius: 16px;
+  overflow: hidden;
+  margin-bottom: 0;
+  border: 1px solid var(--line);
 }
 </style>

@@ -92,6 +92,7 @@ class CommonApiTest(unittest.IsolatedAsyncioTestCase):
                 "/api/v1/date-courses/current/places/{coursePlaceId}/complete",
                 "/api/v1/date-courses/current/places/{coursePlaceId}/heart",
                 "/api/v1/date-courses/current/complete",
+                "/api/v1/weather",
                 "/api/v1/community/posts",
                 "/api/v1/community/posts/{postId}",
                 "/api/v1/community/posts/{postId}/like",

@@ -20,6 +20,7 @@ from app.database import dispose_database_engine
 from app.history.presentation.router import router as history_router
 from app.place.presentation.router import router as place_router
 from app.ranking.presentation.router import router as ranking_router
+from app.weather.presentation.router import router as weather_router
 
 OPENAPI_TAGS = [
     {
@@ -49,6 +50,10 @@ OPENAPI_TAGS = [
     {
         "name": "History",
         "description": "본인의 완료 코스 조회와 새로운 현재 코스 재진행을 제공합니다.",
+    },
+    {
+        "name": "Weather",
+        "description": "Open-Meteo 시간별 예보와 코스 추천용 실내외 비율을 제공합니다.",
     },
 ]
 
@@ -107,6 +112,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(community_router, prefix=resolved_settings.api_prefix)
     application.include_router(ranking_router, prefix=resolved_settings.api_prefix)
     application.include_router(history_router, prefix=resolved_settings.api_prefix)
+    application.include_router(weather_router, prefix=resolved_settings.api_prefix)
     return application
 
 

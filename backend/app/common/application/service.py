@@ -39,7 +39,7 @@ class CommonService:
             status="UP",
             database="UP",
             ai_provider="NOT_CONFIGURED",
-            weather_provider="NOT_CONFIGURED",
+            weather_provider="UP",
             version=self.settings.app_version,
         )
 

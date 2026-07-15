@@ -27,7 +27,8 @@ class Settings(BaseSettings):
     auth_rate_limit_max_attempts: int = Field(default=10, ge=1, le=100)
     auth_rate_limit_window_seconds: int = Field(default=60, ge=1, le=3600)
     openai_api_key: SecretStr | None = None
-    weather_api_key: SecretStr | None = None
+    weather_api_base_url: str = "https://api.open-meteo.com/v1/forecast"
+    weather_api_timeout_seconds: float = Field(default=5.0, gt=0, le=30)
 
     @field_validator("database_url")
     @classmethod

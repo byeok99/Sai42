@@ -2,9 +2,12 @@
 
 from typing import Protocol
 
-from app.chat.domain.entities import AiCoursePlan, AiCourseRequest
+from app.chat.domain.entities import AiChatTurn, AiCoursePlan, AiCourseRequest
 
 
 class AiCourseProvider(Protocol):
     async def generate(self, request: AiCourseRequest) -> AiCoursePlan:
-        """Generate or revise a course using only supplied SQLite candidate IDs."""
+        """Generate an initial course using only supplied SQLite place IDs."""
+
+    async def respond(self, request: AiCourseRequest) -> AiChatTurn:
+        """Classify and answer a chat turn, optionally proposing a course edit."""

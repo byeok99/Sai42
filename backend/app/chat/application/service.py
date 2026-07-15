@@ -21,16 +21,30 @@ from app.chat.application.dto import (
     SendChatMessageDto,
     SendChatMessageRequestDto,
 )
-from app.chat.application.quality import CoursePlanQualityPolicy, haversine_km
+from app.chat.application.quality import (
+    CoursePlanQualityPolicy,
+    haversine_km,
+    public_response_violations,
+)
+from app.chat.application.travel import estimate_travel_minutes
+from app.chat.domain.content_filter import contains_prohibited_language
 from app.chat.domain.entities import (
+    AiChatTurn,
+    AiConversationMemory,
     AiConversationMessage,
+    AiCourseContent,
     AiCoursePlan,
     AiCourseProviderError,
     AiCourseProviderUnavailable,
     AiCourseRequest,
     PlaceCandidate,
 )
-from app.chat.domain.enums import ChatMessageRole, ChatSessionStatus, CourseEditAction
+from app.chat.domain.enums import (
+    ChatMessageRole,
+    ChatSessionStatus,
+    ChatTurnIntent,
+    CourseEditAction,
+)
 from app.chat.domain.provider import AiCourseProvider
 from app.chat.infrastructure.models import ChatSession
 from app.chat.infrastructure.repository import ChatRepository
@@ -60,10 +74,10 @@ QUICK_ACTION_MESSAGES = {
     CourseEditAction.REGENERATE: "같은 조건으로 다른 장소 조합을 만들어줘.",
 }
 
-GAP_MINUTES = {
-    ScheduleDensity.RELAXED: 30,
-    ScheduleDensity.NORMAL: 20,
-    ScheduleDensity.TIGHT: 10,
+TRANSITION_BUFFER_MINUTES = {
+    ScheduleDensity.RELAXED: 15,
+    ScheduleDensity.NORMAL: 10,
+    ScheduleDensity.TIGHT: 5,
 }
 
 MAX_CONVERSATION_MESSAGES = 8
@@ -93,8 +107,8 @@ class ChatService:
         profile: AuthenticatedProfile,
         request: CreateChatSessionRequestDto,
     ) -> CreateChatSessionDto:
-        if request.initial_message and len(request.initial_message) > 1000:
-            self._raise_message_too_long()
+        if request.initial_message:
+            self._validate_user_input(request.initial_message)
         if await self.course_repository.find_active_course(profile.id):
             self._raise_active_course_exists()
         self._validate_start(request.date, request.start_time)
@@ -133,6 +147,7 @@ class ChatService:
             version=1,
         )
         now = now_seoul()
+        memory = self._initial_memory(request.initial_message)
         messages = []
         if request.initial_message:
             messages.append(self._message(ChatMessageRole.USER, request.initial_message, now))
@@ -145,6 +160,7 @@ class ChatService:
             status=ChatSessionStatus.ACTIVE.value,
             conditions_json=self._json(conditions.model_dump(mode="json", by_alias=True)),
             messages_json=self._json(self._messages_payload(messages)),
+            memory_json=self._json(memory.model_dump(mode="json", by_alias=True)),
             draft_json=self._json(draft.model_dump(mode="json", by_alias=True)),
             draft_version=1,
             weather_json=self._json(weather.model_dump(mode="json", by_alias=True)),
@@ -177,6 +193,7 @@ class ChatService:
         if chat_session.draft_version != request.expected_draft_version:
             self._raise_draft_conflict()
         current = self._required_draft(chat_session)
+        memory = self._memory(chat_session)
         conditions = current.conditions
         places = await self.repository.list_recommendable_places(conditions.district)
         candidates = self._rank_candidates(
@@ -190,7 +207,7 @@ class ChatService:
             if request.message is not None
             else QUICK_ACTION_MESSAGES[request.quick_action]
         )
-        plan, violations = await self._generate(
+        turn, violations = await self._generate_turn(
             conditions=conditions.model_dump(mode="json", by_alias=True),
             weather=(
                 current.weather.model_dump(mode="json", by_alias=True) if current.weather else None
@@ -199,20 +216,21 @@ class ChatService:
             user_request=user_content,
             current_draft=current.model_dump(mode="json", by_alias=True),
             conversation=self._conversation_context(self._messages(chat_session)),
+            memory=memory,
             action=request.quick_action,
         )
         if violations:
-            plan = plan.model_copy(
-                update={
-                    "assistant_message": QUALITY_FALLBACK_WARNING,
-                    "warnings": [QUALITY_FALLBACK_WARNING],
-                }
-            )
             proposed = current
             changed = False
-        else:
+            assistant_content = QUALITY_FALLBACK_WARNING
+            warnings = [QUALITY_FALLBACK_WARNING]
+            updated_memory = self._normalize_memory(memory, user_content)
+        elif turn.intent == ChatTurnIntent.COURSE_EDIT:
+            course = turn.proposed_course
+            if course is None:
+                self._raise_provider_error()
             proposed = self._build_draft(
-                plan,
+                course,
                 candidates=candidates,
                 conditions=conditions,
                 weather=(
@@ -224,12 +242,22 @@ class ChatService:
             changed = self._draft_changed(current, proposed)
             if not changed:
                 proposed = current
+            assistant_content = turn.assistant_message
+            warnings = turn.warnings
+            updated_memory = self._normalize_memory(turn.memory, user_content)
+        else:
+            proposed = current
+            changed = False
+            assistant_content = turn.assistant_message
+            warnings = turn.warnings
+            updated_memory = self._normalize_memory(turn.memory, user_content)
         now = now_seoul()
         user_message = self._message(ChatMessageRole.USER, user_content, now)
-        assistant_message = self._message(ChatMessageRole.ASSISTANT, plan.assistant_message, now)
+        assistant_message = self._message(ChatMessageRole.ASSISTANT, assistant_content, now)
         messages = self._messages(chat_session)
         messages.extend([user_message, assistant_message])
         chat_session.messages_json = self._json(self._messages_payload(messages))
+        chat_session.memory_json = self._json(updated_memory.model_dump(mode="json", by_alias=True))
         chat_session.updated_at = now.isoformat()
         if changed:
             chat_session.draft_version = proposed.version
@@ -240,7 +268,7 @@ class ChatService:
             assistant_message=assistant_message,
             change_summary=CourseDraftChangeSummaryDto(
                 changed=changed,
-                warnings=plan.warnings,
+                warnings=warnings,
             ),
             course_draft=proposed,
         )
@@ -358,7 +386,7 @@ class ChatService:
             action=action,
             validation_errors=[],
         )
-        violations = self.quality_policy.violations(
+        violations = self._plan_violations(
             plan,
             conditions=typed_conditions,
             candidates=candidates,
@@ -378,12 +406,72 @@ class ChatService:
             action=action,
             validation_errors=violations,
         )
-        remaining = self.quality_policy.violations(
+        remaining = self._plan_violations(
             repaired,
             conditions=typed_conditions,
             candidates=candidates,
             current_draft=typed_current,
             action=action,
+        )
+        return repaired, remaining
+
+    async def _generate_turn(
+        self,
+        *,
+        conditions: dict[str, object],
+        weather: dict[str, object] | None,
+        candidates: list[PlaceCandidate],
+        user_request: str,
+        current_draft: dict[str, object],
+        conversation: list[AiConversationMessage],
+        memory: AiConversationMemory,
+        action: CourseEditAction | None,
+    ) -> tuple[AiChatTurn, list[str]]:
+        from app.course.application.dto import CourseConditionDto
+
+        typed_conditions = CourseConditionDto.model_validate(conditions)
+        typed_current = CourseDraftDto.model_validate(current_draft)
+        turn = await self._request_turn(
+            conditions=conditions,
+            weather=weather,
+            candidates=candidates,
+            user_request=user_request,
+            current_draft=current_draft,
+            conversation=conversation,
+            memory=memory,
+            action=action,
+            validation_errors=[],
+        )
+        violations = self._turn_violations(
+            turn,
+            conditions=typed_conditions,
+            candidates=candidates,
+            current_draft=typed_current,
+            current_memory=memory,
+            action=action,
+        )
+        if not violations:
+            return turn, []
+
+        repaired = await self._request_turn(
+            conditions=conditions,
+            weather=weather,
+            candidates=candidates,
+            user_request=user_request,
+            current_draft=current_draft,
+            conversation=conversation,
+            memory=memory,
+            action=action,
+            validation_errors=violations,
+        )
+        remaining = self._turn_violations(
+            repaired,
+            conditions=typed_conditions,
+            candidates=candidates,
+            current_draft=typed_current,
+            current_memory=memory,
+            action=action,
+            expected_intent=turn.intent,
         )
         return repaired, remaining
 
@@ -427,9 +515,132 @@ class ChatService:
         except AiCourseProviderError:
             self._raise_provider_error()
 
+    async def _request_turn(
+        self,
+        *,
+        conditions: dict[str, object],
+        weather: dict[str, object] | None,
+        candidates: list[PlaceCandidate],
+        user_request: str,
+        current_draft: dict[str, object],
+        conversation: list[AiConversationMessage],
+        memory: AiConversationMemory,
+        action: CourseEditAction | None,
+        validation_errors: list[str],
+    ) -> AiChatTurn:
+        if self.ai_provider is None:
+            raise BusinessException(
+                status_code=503,
+                code="CHAT_AI_TEMPORARILY_UNAVAILABLE",
+                message="AI 코스 생성 설정을 사용할 수 없습니다.",
+            )
+        try:
+            return await self.ai_provider.respond(
+                AiCourseRequest(
+                    conditions=conditions,
+                    weather=weather,
+                    candidates=candidates,
+                    user_request=user_request,
+                    current_draft=current_draft,
+                    conversation=conversation,
+                    memory=memory,
+                    edit_action=action.value if action else None,
+                    validation_errors=validation_errors,
+                )
+            )
+        except AiCourseProviderUnavailable:
+            raise BusinessException(
+                status_code=503,
+                code="CHAT_AI_TEMPORARILY_UNAVAILABLE",
+                message="AI 코스 생성 서비스를 잠시 사용할 수 없습니다.",
+            ) from None
+        except AiCourseProviderError:
+            self._raise_provider_error()
+
+    def _plan_violations(
+        self,
+        plan: AiCourseContent,
+        *,
+        conditions: object,
+        candidates: list[PlaceCandidate],
+        current_draft: CourseDraftDto | None,
+        action: CourseEditAction | None,
+    ) -> list[str]:
+        violations = self.quality_policy.violations(
+            plan,
+            conditions=conditions,
+            candidates=candidates,
+            current_draft=current_draft,
+            action=action,
+        )
+        visible_texts = self._course_visible_texts(plan)
+        if isinstance(plan, AiCoursePlan):
+            visible_texts.extend([plan.assistant_message, *plan.warnings])
+        violations.extend(public_response_violations(visible_texts))
+        return violations
+
+    def _turn_violations(
+        self,
+        turn: AiChatTurn,
+        *,
+        conditions: object,
+        candidates: list[PlaceCandidate],
+        current_draft: CourseDraftDto,
+        current_memory: AiConversationMemory,
+        action: CourseEditAction | None,
+        expected_intent: ChatTurnIntent | None = None,
+    ) -> list[str]:
+        violations: list[str] = []
+        if expected_intent is not None and turn.intent != expected_intent:
+            violations.append("응답을 고칠 때 직전에 분류한 대화 의도를 변경하지 마세요.")
+        if action is not None and turn.intent != ChatTurnIntent.COURSE_EDIT:
+            violations.append("빠른 수정 요청은 COURSE_EDIT으로 분류하고 수정 코스를 반환하세요.")
+        if turn.proposed_course is not None:
+            violations.extend(
+                self.quality_policy.violations(
+                    turn.proposed_course,
+                    conditions=conditions,
+                    candidates=candidates,
+                    current_draft=current_draft,
+                    action=action,
+                )
+            )
+
+        visible_texts = [turn.assistant_message, *turn.warnings]
+        if turn.proposed_course is not None:
+            visible_texts.extend(self._course_visible_texts(turn.proposed_course))
+        violations.extend(public_response_violations(visible_texts))
+
+        allowed_ids = {candidate.content_id for candidate in candidates}
+        allowed_ids.update(
+            place.place.content_id
+            for place in current_draft.places
+            if place.place.content_id is not None
+        )
+        remembered_ids = {
+            *turn.memory.must_keep_content_ids,
+            *turn.memory.excluded_content_ids,
+        }
+        if not remembered_ids.issubset(allowed_ids):
+            violations.append("memory에는 입력으로 제공된 실제 장소 ID만 기록하세요.")
+        if set(turn.memory.must_keep_content_ids) & set(turn.memory.excluded_content_ids):
+            violations.append("같은 장소를 유지 목록과 제외 목록에 동시에 기록하지 마세요.")
+        if current_memory.summary and not turn.memory.summary:
+            violations.append("기존 memory의 대화 요약을 유지하면서 최신 요청을 반영하세요.")
+        return violations
+
+    @staticmethod
+    def _course_visible_texts(course: AiCourseContent) -> list[str]:
+        return [
+            course.title,
+            course.overall_comment,
+            *course.tags,
+            *(place.sweet_comment for place in course.places),
+        ]
+
     def _build_draft(
         self,
-        plan: AiCoursePlan,
+        plan: AiCourseContent,
         *,
         candidates: list[PlaceCandidate],
         conditions: object,
@@ -448,7 +659,7 @@ class ChatService:
             raise BusinessException(
                 status_code=502,
                 code="CHAT_AI_PROVIDER_ERROR",
-                message="AI가 공공데이터 후보에 없는 장소를 반환했습니다.",
+                message="AI가 확인할 수 없는 장소를 반환했습니다.",
             )
         start = datetime.combine(
             typed_conditions.date,
@@ -456,14 +667,14 @@ class ChatService:
             tzinfo=now_seoul().tzinfo,
         )
         cursor = start
-        gap = GAP_MINUTES[typed_conditions.schedule_density]
+        transition_buffer = TRANSITION_BUFFER_MINUTES[typed_conditions.schedule_density]
         draft_places = []
-        for order, ai_place in enumerate(plan.places, start=1):
+        for index, ai_place in enumerate(plan.places):
             candidate = candidate_by_id[ai_place.content_id]
             draft_places.append(
                 CourseDraftPlaceDto(
                     course_place_id=str(uuid4()),
-                    order=order,
+                    order=index + 1,
                     scheduled_at=cursor,
                     estimated_stay_minutes=ai_place.estimated_stay_minutes,
                     place=CoursePlaceSnapshotDto(
@@ -481,7 +692,15 @@ class ChatService:
                     sweet_comment=ai_place.sweet_comment,
                 )
             )
-            cursor += timedelta(minutes=ai_place.estimated_stay_minutes + gap)
+            visit_end = cursor + timedelta(minutes=ai_place.estimated_stay_minutes)
+            if index < len(plan.places) - 1:
+                next_candidate = candidate_by_id[plan.places[index + 1].content_id]
+                travel_minutes = estimate_travel_minutes(
+                    (candidate.latitude, candidate.longitude),
+                    (next_candidate.latitude, next_candidate.longitude),
+                    typed_conditions.transportation,
+                )
+                cursor = visit_end + timedelta(minutes=travel_minutes + transition_buffer)
         last_end = draft_places[-1].scheduled_at + timedelta(
             minutes=draft_places[-1].estimated_stay_minutes
         )
@@ -760,6 +979,45 @@ class ChatService:
         ]
 
     @staticmethod
+    def _memory(chat_session: ChatSession) -> AiConversationMemory:
+        try:
+            return AiConversationMemory.model_validate(json.loads(chat_session.memory_json))
+        except (TypeError, ValueError):
+            return AiConversationMemory()
+
+    @staticmethod
+    def _initial_memory(initial_message: str | None) -> AiConversationMemory:
+        if initial_message is None:
+            return AiConversationMemory()
+        return AiConversationMemory(
+            summary=f"사용자의 최초 요청: {initial_message}",
+            preference_notes=[initial_message[:160]],
+        )
+
+    @staticmethod
+    def _normalize_memory(
+        memory: AiConversationMemory,
+        latest_user_message: str | None = None,
+    ) -> AiConversationMemory:
+        def unique(values: list[str]) -> list[str]:
+            return list(dict.fromkeys(value.strip() for value in values if value.strip()))
+
+        summary = memory.summary.strip()
+        if latest_user_message and latest_user_message not in summary:
+            summary = f"{summary}\n최근 사용자 발화: {latest_user_message}".strip()[-1500:]
+        return memory.model_copy(
+            update={
+                "summary": summary,
+                "preference_notes": unique(memory.preference_notes),
+                "must_keep_content_ids": unique(memory.must_keep_content_ids),
+                "excluded_content_ids": unique(memory.excluded_content_ids),
+                "pending_clarification": (
+                    memory.pending_clarification.strip() if memory.pending_clarification else None
+                ),
+            }
+        )
+
+    @staticmethod
     def _message(role: ChatMessageRole, content: str, created_at: datetime) -> ChatMessageDto:
         return ChatMessageDto(
             message_id=str(uuid4()),
@@ -852,13 +1110,26 @@ class ChatService:
     @staticmethod
     def _validate_edit_request(request: SendChatMessageRequestDto) -> None:
         has_message = request.message is not None and bool(request.message)
-        if has_message and len(request.message or "") > 1000:
-            ChatService._raise_message_too_long()
+        if has_message:
+            ChatService._validate_user_input(request.message or "")
         if has_message == (request.quick_action is not None):
             raise BusinessException(
                 status_code=422,
                 code="CHAT_INVALID_EDIT_REQUEST",
                 message="message와 quickAction 중 정확히 하나를 전달해 주세요.",
+            )
+
+    @staticmethod
+    def _validate_user_input(message: str) -> None:
+        if len(message) > 1000:
+            ChatService._raise_message_too_long()
+        if contains_prohibited_language(message):
+            raise BusinessException(
+                status_code=422,
+                code="CHAT_INVALID_EDIT_REQUEST",
+                message=(
+                    "사용할 수 없는 표현이 포함되어 있습니다. 다른 표현으로 다시 요청해 주세요."
+                ),
             )
 
     @staticmethod

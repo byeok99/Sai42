@@ -4,7 +4,7 @@ import sqlite3
 import tempfile
 import unittest
 from collections.abc import AsyncIterator
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
@@ -14,10 +14,20 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 import app.models  # noqa: F401 - register full SQLAlchemy metadata
 from app.auth.infrastructure.models import UserProfile
-from app.chat.domain.entities import AiCoursePlace, AiCoursePlan, AiCourseRequest
+from app.chat.application.service import QUALITY_FALLBACK_WARNING, TRANSITION_BUFFER_MINUTES
+from app.chat.application.travel import estimate_travel_minutes
+from app.chat.domain.entities import (
+    AiChatTurn,
+    AiConversationMemory,
+    AiCourseContent,
+    AiCoursePlace,
+    AiCoursePlan,
+    AiCourseRequest,
+)
+from app.chat.domain.enums import ChatTurnIntent
 from app.chat.infrastructure.models import ChatSession
 from app.chat.presentation.dependencies import get_ai_course_provider
-from app.common.domain.enums import SpaceType
+from app.common.domain.enums import ScheduleDensity, SpaceType, Transportation
 from app.common.domain.time import now_seoul
 from app.config import Settings
 from app.database import Base, get_database_session
@@ -57,8 +67,7 @@ class RecordingAiProvider:
         self.invalid_content_id = invalid_content_id
         self.requests: list[AiCourseRequest] = []
 
-    async def generate(self, request: AiCourseRequest) -> AiCoursePlan:
-        self.requests.append(request)
+    def _plan(self, request: AiCourseRequest) -> AiCoursePlan:
         pool = request.candidates
         if request.current_draft is not None:
             alternatives = [candidate for candidate in pool if not candidate.is_current]
@@ -98,14 +107,64 @@ class RecordingAiProvider:
             warnings=[],
         )
 
+    @staticmethod
+    def _updated_memory(request: AiCourseRequest) -> AiConversationMemory:
+        previous = request.memory
+        new_summary = " / ".join(item for item in (previous.summary, request.user_request) if item)[
+            -1500:
+        ]
+        notes = [*previous.preference_notes, request.user_request[:160]][-12:]
+        return previous.model_copy(
+            update={
+                "summary": new_summary,
+                "preference_notes": list(dict.fromkeys(notes)),
+            }
+        )
+
+    async def generate(self, request: AiCourseRequest) -> AiCoursePlan:
+        self.requests.append(request)
+        return self._plan(request)
+
+    async def respond(self, request: AiCourseRequest) -> AiChatTurn:
+        self.requests.append(request)
+        message = request.user_request
+        memory = self._updated_memory(request)
+        if request.edit_action is not None or any(
+            keyword in message for keyword in ("바꿔", "추가", "빼", "줄여", "늘려", "재생성")
+        ):
+            plan = self._plan(request)
+            return AiChatTurn(
+                intent=ChatTurnIntent.COURSE_EDIT,
+                assistant_message=plan.assistant_message,
+                proposed_course=AiCourseContent.model_validate(plan.model_dump()),
+                warnings=plan.warnings,
+                memory=memory,
+            )
+        if any(keyword in message for keyword in ("왜", "어디", "몇 시", "얼마나")):
+            return AiChatTurn(
+                intent=ChatTurnIntent.COURSE_QUESTION,
+                assistant_message="현재 코스를 기준으로 차근차근 설명해 드릴게요.",
+                memory=memory,
+            )
+        if any(keyword in message for keyword in ("안녕", "고마워", "기분")):
+            return AiChatTurn(
+                intent=ChatTurnIntent.CASUAL_CONVERSATION,
+                assistant_message="안녕하세요! 오늘도 편안하게 이야기해요.",
+                memory=memory,
+            )
+        return AiChatTurn(
+            intent=ChatTurnIntent.CLARIFICATION_REQUIRED,
+            assistant_message="어느 장소를 어떤 방향으로 조정할까요?",
+            memory=memory.model_copy(update={"pending_clarification": message}),
+        )
+
 
 class StubbornAiProvider(RecordingAiProvider):
     """Keep the current places even when regeneration asks for a new combination."""
 
-    async def generate(self, request: AiCourseRequest) -> AiCoursePlan:
+    def _plan(self, request: AiCourseRequest) -> AiCoursePlan:
         if request.current_draft is None:
-            return await super().generate(request)
-        self.requests.append(request)
+            return super()._plan(request)
         current = [candidate for candidate in request.candidates if candidate.is_current]
         return AiCoursePlan(
             title="기존 코스 유지",
@@ -122,6 +181,38 @@ class StubbornAiProvider(RecordingAiProvider):
                 for candidate in current[:3]
             ],
             warnings=[],
+        )
+
+
+class LeakyOnceAiProvider(RecordingAiProvider):
+    """Expose an internal term once so the application-level repair can be verified."""
+
+    async def generate(self, request: AiCourseRequest) -> AiCoursePlan:
+        self.requests.append(request)
+        plan = self._plan(request)
+        if not request.validation_errors:
+            return plan.model_copy(update={"assistant_message": "DB 후보를 ANY 조건으로 골랐어요."})
+        return plan
+
+
+class IntentChangingRepairProvider(RecordingAiProvider):
+    """Try to turn a casual answer repair into an unrelated course edit."""
+
+    async def respond(self, request: AiCourseRequest) -> AiChatTurn:
+        self.requests.append(request)
+        memory = self._updated_memory(request)
+        if not request.validation_errors:
+            return AiChatTurn(
+                intent=ChatTurnIntent.CASUAL_CONVERSATION,
+                assistant_message="DB 후보를 확인할게요.",
+                memory=memory,
+            )
+        plan = self._plan(request)
+        return AiChatTurn(
+            intent=ChatTurnIntent.COURSE_EDIT,
+            assistant_message=plan.assistant_message,
+            proposed_course=AiCourseContent.model_validate(plan.model_dump()),
+            memory=memory,
         )
 
 
@@ -308,6 +399,130 @@ class ChatApiTest(unittest.IsolatedAsyncioTestCase):
         current = await self.client.get("/api/v1/date-courses/current", headers=self.headers)
         self.assertEqual(200, current.status_code)
         self.assertEqual(course["courseId"], current.json()["data"]["courseId"])
+
+    async def test_schedule_uses_coordinate_travel_time_and_transportation(self) -> None:
+        created = await self.client.post(
+            "/api/v1/chat/sessions", json=self._create_body(), headers=self.headers
+        )
+        self.assertEqual(201, created.status_code, created.text)
+        draft = created.json()["data"]["courseDraft"]
+        places = draft["places"]
+        scheduled = [datetime.fromisoformat(place["scheduledAt"]) for place in places]
+
+        for index in range(len(places) - 1):
+            current = places[index]
+            following = places[index + 1]
+            current_location = current["place"]
+            following_location = following["place"]
+            travel_minutes = estimate_travel_minutes(
+                (current_location["latitude"], current_location["longitude"]),
+                (following_location["latitude"], following_location["longitude"]),
+                Transportation.PUBLIC_TRANSIT,
+            )
+            expected_interval = (
+                current["estimatedStayMinutes"]
+                + travel_minutes
+                + TRANSITION_BUFFER_MINUTES[ScheduleDensity.RELAXED]
+            )
+            actual_interval = int((scheduled[index + 1] - scheduled[index]).total_seconds() / 60)
+            self.assertEqual(expected_interval, actual_interval)
+
+        final_end = scheduled[-1] + timedelta(minutes=places[-1]["estimatedStayMinutes"])
+        self.assertEqual(
+            int((final_end - scheduled[0]).total_seconds() / 60),
+            draft["estimatedTotalMinutes"],
+        )
+
+    async def test_casual_talk_and_course_question_preserve_draft_and_memory(self) -> None:
+        created = await self.client.post(
+            "/api/v1/chat/sessions", json=self._create_body(), headers=self.headers
+        )
+        created_data = created.json()["data"]
+        session_id = created_data["sessionId"]
+        original = created_data["courseDraft"]
+
+        casual = await self.client.post(
+            f"/api/v1/chat/sessions/{session_id}/messages",
+            json={"message": "안녕! 오늘 기분은 어때?", "expectedDraftVersion": 1},
+            headers=self.headers,
+        )
+        self.assertEqual(200, casual.status_code, casual.text)
+        casual_data = casual.json()["data"]
+        self.assertFalse(casual_data["changeSummary"]["changed"])
+        self.assertEqual(original, casual_data["courseDraft"])
+
+        question = await self.client.post(
+            f"/api/v1/chat/sessions/{session_id}/messages",
+            json={"message": "이 코스는 왜 이렇게 구성했어?", "expectedDraftVersion": 1},
+            headers=self.headers,
+        )
+        self.assertEqual(200, question.status_code, question.text)
+        question_data = question.json()["data"]
+        self.assertFalse(question_data["changeSummary"]["changed"])
+        self.assertEqual(original, question_data["courseDraft"])
+        self.assertIn("안녕! 오늘 기분은 어때?", self.provider.requests[-1].memory.summary)
+
+        detail = await self.client.get(f"/api/v1/chat/sessions/{session_id}", headers=self.headers)
+        self.assertEqual(6, len(detail.json()["data"]["messages"]))
+
+    async def test_prohibited_user_input_is_not_sent_to_ai_or_stored(self) -> None:
+        blocked_body = self._create_body()
+        blocked_body["initialMessage"] = "씨\u200b발 아무 데나 넣어줘"
+        blocked_create = await self.client.post(
+            "/api/v1/chat/sessions", json=blocked_body, headers=self.headers
+        )
+        self.assertEqual(422, blocked_create.status_code, blocked_create.text)
+        self.assertEqual("CHAT_INVALID_EDIT_REQUEST", blocked_create.json()["code"])
+        self.assertEqual([], self.provider.requests)
+
+        created = await self.client.post(
+            "/api/v1/chat/sessions", json=self._create_body(), headers=self.headers
+        )
+        session_id = created.json()["data"]["sessionId"]
+        request_count = len(self.provider.requests)
+        blocked_message = await self.client.post(
+            f"/api/v1/chat/sessions/{session_id}/messages",
+            json={"message": "이 코스 씨 발", "expectedDraftVersion": 1},
+            headers=self.headers,
+        )
+        self.assertEqual(422, blocked_message.status_code, blocked_message.text)
+        self.assertEqual("CHAT_INVALID_EDIT_REQUEST", blocked_message.json()["code"])
+        self.assertEqual(request_count, len(self.provider.requests))
+
+        detail = await self.client.get(f"/api/v1/chat/sessions/{session_id}", headers=self.headers)
+        self.assertEqual(2, len(detail.json()["data"]["messages"]))
+
+    async def test_internal_response_terms_are_repaired_before_returning(self) -> None:
+        provider = LeakyOnceAiProvider()
+        self.app.dependency_overrides[get_ai_course_provider] = lambda: provider
+        created = await self.client.post(
+            "/api/v1/chat/sessions", json=self._create_body(), headers=self.headers
+        )
+        self.assertEqual(201, created.status_code, created.text)
+        assistant = created.json()["data"]["assistantMessage"]["content"]
+        self.assertNotIn("DB", assistant)
+        self.assertNotIn("ANY", assistant)
+        self.assertEqual(2, len(provider.requests))
+        self.assertTrue(provider.requests[-1].validation_errors)
+
+    async def test_response_repair_cannot_change_casual_talk_into_course_edit(self) -> None:
+        provider = IntentChangingRepairProvider()
+        self.app.dependency_overrides[get_ai_course_provider] = lambda: provider
+        created = await self.client.post(
+            "/api/v1/chat/sessions", json=self._create_body(), headers=self.headers
+        )
+        original = created.json()["data"]["courseDraft"]
+
+        response = await self.client.post(
+            f"/api/v1/chat/sessions/{created.json()['data']['sessionId']}/messages",
+            json={"message": "안녕", "expectedDraftVersion": 1},
+            headers=self.headers,
+        )
+        self.assertEqual(200, response.status_code, response.text)
+        data = response.json()["data"]
+        self.assertFalse(data["changeSummary"]["changed"])
+        self.assertEqual(original, data["courseDraft"])
+        self.assertEqual(QUALITY_FALLBACK_WARNING, data["assistantMessage"]["content"])
 
     async def test_discard_returns_the_documented_null_payload(self) -> None:
         created = await self.client.post(

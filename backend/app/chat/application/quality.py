@@ -1,15 +1,26 @@
 """Deterministic quality checks for AI-generated course plans."""
 
+import re
 from math import asin, cos, radians, sin, sqrt
 
 from app.chat.application.dto import CourseDraftDto
-from app.chat.domain.entities import AiCoursePlan, PlaceCandidate
+from app.chat.domain.entities import AiCourseContent, PlaceCandidate
 from app.chat.domain.enums import CourseEditAction
 from app.common.domain.enums import SpaceType
 from app.course.application.dto import CourseConditionDto
 
 CAFE_KEYWORDS = ("카페", "커피", "coffee", "디저트", "베이커리")
 NIGHT_VIEW_KEYWORDS = ("야경", "전망", "공원", "대교", "엑스포", "산")
+INTERNAL_RESPONSE_PATTERNS = (
+    re.compile(r"(?<![a-z])db(?![a-z])", re.IGNORECASE),
+    re.compile(r"sqlite", re.IGNORECASE),
+    re.compile(r"content\s*id", re.IGNORECASE),
+    re.compile(r"candidates?", re.IGNORECASE),
+    re.compile(r"(?<![a-z])any(?![a-z])", re.IGNORECASE),
+    re.compile(r"후보"),
+    re.compile(r"내부\s*(?:검증|프롬프트|시스템)"),
+    re.compile(r"\b[A-Z][A-Z0-9_]{2,}\b"),
+)
 
 
 def haversine_km(
@@ -38,12 +49,23 @@ def route_distance_km(coordinates: list[tuple[float, float]]) -> float:
     )
 
 
+def public_response_violations(texts: list[str]) -> list[str]:
+    """Reject service internals and enum-like tokens from user-visible model text."""
+
+    if any(pattern.search(text) for pattern in INTERNAL_RESPONSE_PATTERNS for text in texts):
+        return [
+            "사용자에게 데이터 저장 방식, 선택 목록, 식별자, 영문 enum 또는 내부 검증 용어를 "
+            "노출하지 말고 자연스러운 서비스 문장으로 다시 작성하세요."
+        ]
+    return []
+
+
 class CoursePlanQualityPolicy:
     """Validate business intent beyond the provider's output schema."""
 
     def violations(
         self,
-        plan: AiCoursePlan,
+        plan: AiCourseContent,
         *,
         conditions: CourseConditionDto,
         candidates: list[PlaceCandidate],
@@ -70,7 +92,7 @@ class CoursePlanQualityPolicy:
 
     @staticmethod
     def _condition_violations(
-        plan: AiCoursePlan,
+        plan: AiCourseContent,
         selected: list[PlaceCandidate],
         candidates: list[PlaceCandidate],
         conditions: CourseConditionDto,
@@ -100,7 +122,7 @@ class CoursePlanQualityPolicy:
 
     def _action_violations(
         self,
-        plan: AiCoursePlan,
+        plan: AiCourseContent,
         selected: list[PlaceCandidate],
         candidates: list[PlaceCandidate],
         current: CourseDraftDto,

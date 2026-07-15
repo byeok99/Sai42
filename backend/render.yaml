@@ -19,3 +19,7 @@ services:
         sync: false
       - key: SQLITE_BUSY_TIMEOUT_MS
         value: "5000"
+      - key: AUTH_RATE_LIMIT_MAX_ATTEMPTS
+        value: "10"
+      - key: AUTH_RATE_LIMIT_WINDOW_SECONDS
+        value: "60"

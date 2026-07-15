@@ -9,6 +9,7 @@ Browser
   -> frontend/ (Vue 3 + Vite)
   -> backend/  (FastAPI)
   -> SQLite    (Backend에서 비동기 접근)
+
 ```
 
 ## Frontend
@@ -59,3 +60,4 @@ app/<domain>/
 무료 API는 별도 키 없이 서버에서 호출합니다. OpenAI API 키는 서버 환경변수로만 주입하고 응답은
 외부 도구 호출 없이 구조화 출력으로 받습니다. 벡터 DB와 임베딩은 사용하지 않습니다. Kakao Maps
 연동은 환경변수 이름만 예약하며 실제 호출은 구현하지 않습니다.
+

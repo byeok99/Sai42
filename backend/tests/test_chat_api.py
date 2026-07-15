@@ -196,9 +196,36 @@ class ChatApiTest(unittest.IsolatedAsyncioTestCase):
             "/api/v1/chat/sessions", json=self._create_body(), headers=self.headers
         )
         self.assertEqual(201, created.status_code, created.text)
-        created_data = created.json()["data"]
+        created_body = created.json()
+        self.assertEqual(
+            {"success", "code", "message", "data", "meta", "timestamp", "traceId"},
+            set(created_body),
+        )
+        self.assertEqual("CHAT_SESSION_CREATED", created_body["code"])
+        created_data = created_body["data"]
+        self.assertEqual(
+            {"sessionId", "status", "assistantMessage", "courseDraft"}, set(created_data)
+        )
         session_id = created_data["sessionId"]
         draft = created_data["courseDraft"]
+        self.assertEqual(
+            {
+                "draftId",
+                "version",
+                "title",
+                "date",
+                "timeSlot",
+                "overallComment",
+                "estimatedTotalMinutes",
+                "conditions",
+                "tags",
+                "weather",
+                "places",
+                "map",
+            },
+            set(draft),
+        )
+        self.assertEqual("14:00", draft["conditions"]["startTime"])
         self.assertEqual(1, draft["version"])
         self.assertEqual(3, len(draft["places"]))
         self.assertTrue(
@@ -211,7 +238,17 @@ class ChatApiTest(unittest.IsolatedAsyncioTestCase):
 
         detail = await self.client.get(f"/api/v1/chat/sessions/{session_id}", headers=self.headers)
         self.assertEqual(200, detail.status_code)
-        self.assertEqual(2, len(detail.json()["data"]["messages"]))
+        detail_body = detail.json()
+        self.assertEqual("COMMON_OK", detail_body["code"])
+        self.assertEqual(
+            {"sessionId", "status", "conditions", "messages", "courseDraft"},
+            set(detail_body["data"]),
+        )
+        self.assertEqual(2, len(detail_body["data"]["messages"]))
+        self.assertEqual(
+            {"messageId", "role", "content", "createdAt"},
+            set(detail_body["data"]["messages"][0]),
+        )
 
         edited = await self.client.post(
             f"/api/v1/chat/sessions/{session_id}/messages",
@@ -219,7 +256,13 @@ class ChatApiTest(unittest.IsolatedAsyncioTestCase):
             headers=self.headers,
         )
         self.assertEqual(200, edited.status_code, edited.text)
-        edited_data = edited.json()["data"]
+        edited_body = edited.json()
+        self.assertEqual("CHAT_DRAFT_UPDATED", edited_body["code"])
+        edited_data = edited_body["data"]
+        self.assertEqual(
+            {"userMessage", "assistantMessage", "changeSummary", "courseDraft"},
+            set(edited_data),
+        )
         self.assertTrue(edited_data["changeSummary"]["changed"])
         self.assertEqual(2, edited_data["courseDraft"]["version"])
 
@@ -229,7 +272,31 @@ class ChatApiTest(unittest.IsolatedAsyncioTestCase):
             headers={**self.headers, "Idempotency-Key": str(uuid4())},
         )
         self.assertEqual(201, confirmed.status_code, confirmed.text)
-        course = confirmed.json()["data"]
+        confirmed_body = confirmed.json()
+        self.assertEqual("CHAT_SESSION_CONFIRMED", confirmed_body["code"])
+        course = confirmed_body["data"]
+        self.assertEqual(
+            {
+                "courseId",
+                "status",
+                "sourceType",
+                "title",
+                "date",
+                "timeSlot",
+                "overallComment",
+                "estimatedTotalMinutes",
+                "conditions",
+                "tags",
+                "weather",
+                "places",
+                "map",
+                "progress",
+                "oneLineComment",
+                "createdAt",
+                "completedAt",
+            },
+            set(course),
+        )
         self.assertEqual("AI_CHAT", course["sourceType"])
         self.assertEqual(3, len(course["places"]))
         self.assertTrue(
@@ -241,6 +308,25 @@ class ChatApiTest(unittest.IsolatedAsyncioTestCase):
         current = await self.client.get("/api/v1/date-courses/current", headers=self.headers)
         self.assertEqual(200, current.status_code)
         self.assertEqual(course["courseId"], current.json()["data"]["courseId"])
+
+    async def test_discard_returns_the_documented_null_payload(self) -> None:
+        created = await self.client.post(
+            "/api/v1/chat/sessions", json=self._create_body(), headers=self.headers
+        )
+        self.assertEqual(201, created.status_code, created.text)
+        session_id = created.json()["data"]["sessionId"]
+
+        discarded = await self.client.delete(
+            f"/api/v1/chat/sessions/{session_id}", headers=self.headers
+        )
+        self.assertEqual(200, discarded.status_code, discarded.text)
+        discarded_body = discarded.json()
+        self.assertEqual(
+            {"success", "code", "message", "data", "meta", "timestamp", "traceId"},
+            set(discarded_body),
+        )
+        self.assertEqual("CHAT_SESSION_DISCARDED", discarded_body["code"])
+        self.assertIsNone(discarded_body["data"])
 
     async def test_unknown_ai_place_is_rejected_and_session_is_not_saved(self) -> None:
         invalid_provider = RecordingAiProvider(invalid_content_id=True)

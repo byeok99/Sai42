@@ -1,9 +1,8 @@
 """Current DateCourse HTTP DTO contracts."""
 
 from datetime import date, datetime, time
-from typing import Any
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_serializer, field_validator
 
 from app.common.application.dto import ApiDto
 from app.common.domain.enums import (
@@ -17,6 +16,7 @@ from app.common.domain.enums import (
 )
 from app.course.domain.enums import DateCourseSourceType, DateCourseStatus
 from app.place.domain.enums import PlaceCategory
+from app.weather.application.dto import WeatherSummaryDto
 
 
 class CoordinateDto(ApiDto):
@@ -40,6 +40,10 @@ class CourseConditionDto(ApiDto):
     activities: list[ActivityType]
     schedule_density: ScheduleDensity
     transportation: Transportation | None
+
+    @field_serializer("start_time")
+    def serialize_start_time(self, value: time) -> str:
+        return value.strftime("%H:%M")
 
 
 class CoursePlaceSnapshotDto(ApiDto):
@@ -85,8 +89,8 @@ class DateCourseDto(ApiDto):
     estimated_total_minutes: int
     conditions: CourseConditionDto
     tags: list[str]
-    weather: dict[str, Any] | None
-    places: list[CoursePlaceDto]
+    weather: WeatherSummaryDto | None
+    places: list[CoursePlaceDto] = Field(min_length=2, max_length=4)
     map: CourseMapDto
     progress: CourseProgressSummaryDto
     one_line_comment: str | None

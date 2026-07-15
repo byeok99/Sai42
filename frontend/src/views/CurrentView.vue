@@ -129,11 +129,14 @@ function navigateToChat() {
       </div>
     </div>
     <!-- Fullscreen Map Modal -->
-    <div v-if="showMapModal" class="overlay open map-modal-overlay">
+    <div
+      v-if="showMapModal"
+      class="overlay open map-modal-overlay"
+      @click.self="showMapModal = false"
+    >
       <div class="modal map-modal">
         <div class="modal-header">
           <h3>진행 중인 데이트 코스</h3>
-          <button class="close-x-btn" @click="showMapModal = false">&times;</button>
         </div>
         <div class="modal-map-container" style="margin-bottom: 0">
           <LeafletMap
@@ -410,6 +413,11 @@ function navigateToChat() {
 }
 
 .map-modal-overlay {
+  position: absolute;
+  z-index: 100;
+  inset: 0;
+  background: rgba(53, 42, 45, 0.45);
+  backdrop-filter: blur(3px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -441,23 +449,6 @@ function navigateToChat() {
   font-weight: 800;
   flex: 1;
   text-align: center;
-  padding-left: 24px;
-}
-
-.close-x-btn {
-  font-size: 24px;
-  font-weight: 300;
-  color: var(--muted);
-  background: transparent;
-  border: 0;
-  cursor: pointer;
-  line-height: 1;
-  padding: 4px 8px;
-  transition: color 0.2s;
-}
-
-.close-x-btn:hover {
-  color: var(--ink);
 }
 
 .modal-map-container {

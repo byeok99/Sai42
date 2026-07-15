@@ -56,6 +56,10 @@ class DateCourseService:
             return None
         return await self._course_dto(course)
 
+    async def render_course(self, course: DateCourse) -> DateCourseDto:
+        """Build the shared immutable course read model for adjacent domains."""
+        return await self._course_dto(course)
+
     async def complete_place(
         self, profile: AuthenticatedProfile, course_place_id: str
     ) -> DateCourseProgressDto:

@@ -19,6 +19,8 @@
 | `DATABASE_URL`             | 비동기 SQLite 연결 URL            | `sqlite+aiosqlite:///./data/sai42.db` |
 | `CORS_ALLOWED_ORIGINS`     | 허용 Browser origin, 쉼표 구분    | `http://localhost:5173`               |
 | `SQLITE_BUSY_TIMEOUT_MS`   | SQLite lock 대기 시간(ms)         | `5000`                                |
+| `AUTH_RATE_LIMIT_MAX_ATTEMPTS` | 인증 실패·등록 시도 허용 횟수 | `10`                                  |
+| `AUTH_RATE_LIMIT_WINDOW_SECONDS` | 인증 시도 제한 구간(초)     | `60`                                  |
 | `OPENAI_API_KEY`           | 향후 OpenAI 연동                  | 빈 값                                 |
 | `WEATHER_API_KEY`          | 향후 외부 날씨 API 연동           | 빈 값                                 |
 

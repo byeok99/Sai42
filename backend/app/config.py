@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///./data/sai42.db"
     cors_allowed_origins: str = "http://localhost:5173"
     sqlite_busy_timeout_ms: int = Field(default=5000, ge=0, le=60000)
+    auth_rate_limit_max_attempts: int = Field(default=10, ge=1, le=100)
+    auth_rate_limit_window_seconds: int = Field(default=60, ge=1, le=3600)
     openai_api_key: SecretStr | None = None
     weather_api_key: SecretStr | None = None
 

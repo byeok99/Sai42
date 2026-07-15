@@ -78,7 +78,14 @@ class CommonApiTest(unittest.IsolatedAsyncioTestCase):
         schema = schema_response.json()
         self.assertEqual(
             set(schema["paths"]),
-            {"/api/v1/health", "/api/v1/meta/options"},
+            {
+                "/api/v1/health",
+                "/api/v1/meta/options",
+                "/api/v1/auth/nickname-suggestions",
+                "/api/v1/auth/profiles",
+                "/api/v1/auth/verify",
+                "/api/v1/profiles/me",
+            },
         )
         schemas = schema["components"]["schemas"]
         self.assertIn("ErrorResponseDto", schemas)

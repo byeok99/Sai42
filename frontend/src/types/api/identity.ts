@@ -17,4 +17,6 @@ export interface ProfileMeDto {
   nickname: string
   createdAt: string
   updatedAt: string
+  profileImageUrl?: string | null
+  status?: 'ACTIVE' | 'DELETED'
 }

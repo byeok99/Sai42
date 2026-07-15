@@ -32,3 +32,9 @@ export interface CommunityPostCreateRequestDto {
 export interface CommunityPostUpdateRequestDto {
   oneLineComment: string
 }
+
+export interface CommunityPostLikeDto {
+  postId: string
+  likedByMe: boolean
+  likeCount: number
+}

@@ -1,4 +1,5 @@
 export interface CourseDraftPlaceDto {
+  coursePlaceId: string
   contentId: string
   orderNo: number
   scheduledAt: string
@@ -6,6 +7,7 @@ export interface CourseDraftPlaceDto {
   sweetComment: string
   titleSnapshot: string
   addressSnapshot?: string
+  heartedByMe?: boolean
 }
 
 export interface CurrentCourseDto {
@@ -18,6 +20,7 @@ export interface CurrentCourseDto {
   places: CourseDraftPlaceDto[]
   currentOrderNo: number
   status: 'ACTIVE' | 'COMPLETED'
+  progressPercent?: number
 }
 
 export interface CompleteCourseRequestDto {

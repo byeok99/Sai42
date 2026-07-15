@@ -1,19 +1,20 @@
 export interface PlaceSummaryDto {
   contentId: string
-  name: string
+  title: string
   address: string
-  addressDetail?: string
-  latitude?: number
-  longitude?: number
-  imageUrl?: string
-  category?: string
   district?: string
+  category?: string
   spaceType?: string
   mood?: string[]
+  imageUrl?: string
+  latitude?: number
+  longitude?: number
+  source?: string
 }
 
 export interface PlaceDetailDto extends PlaceSummaryDto {
   description?: string
   estimatedStayMinutes?: number
   estimatedCost?: number
+  tags?: string[]
 }

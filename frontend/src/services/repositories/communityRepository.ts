@@ -1,7 +1,7 @@
 import { apiClient } from '@/services/api/client'
 import { apiEndpoints } from '@/services/api/endpoints'
 import type { BaseDto } from '@/types/api/common'
-import type { CommunityPostCreateRequestDto, CommunityPostDetailDto, CommunityPostSummaryDto, CommunityPostUpdateRequestDto } from '@/types/api/community'
+import type { CommunityPostCreateRequestDto, CommunityPostDetailDto, CommunityPostLikeDto, CommunityPostSummaryDto, CommunityPostUpdateRequestDto } from '@/types/api/community'
 
 export interface CommunityRepository {
   listPosts(params?: { sort?: 'POPULAR' | 'LATEST' }): Promise<BaseDto<CommunityPostSummaryDto[]>>
@@ -9,8 +9,8 @@ export interface CommunityRepository {
   createPost(payload: CommunityPostCreateRequestDto, headers: { 'X-Profile-Id': string; 'X-User-Password': string }): Promise<BaseDto<CommunityPostDetailDto>>
   updatePost(postId: string, payload: CommunityPostUpdateRequestDto, headers: { 'X-Profile-Id': string; 'X-User-Password': string }): Promise<BaseDto<CommunityPostDetailDto>>
   deletePost(postId: string, headers: { 'X-Profile-Id': string; 'X-User-Password': string }): Promise<BaseDto<unknown>>
-  likePost(postId: string, headers: { 'X-Profile-Id': string; 'X-User-Password': string }): Promise<BaseDto<{ postId: string; likedByMe: boolean; likeCount: number }>>
-  unlikePost(postId: string, headers: { 'X-Profile-Id': string; 'X-User-Password': string }): Promise<BaseDto<{ postId: string; likedByMe: boolean; likeCount: number }>>
+  likePost(postId: string, headers: { 'X-Profile-Id': string; 'X-User-Password': string }): Promise<BaseDto<CommunityPostLikeDto>>
+  unlikePost(postId: string, headers: { 'X-Profile-Id': string; 'X-User-Password': string }): Promise<BaseDto<CommunityPostLikeDto>>
   startPost(postId: string, headers: { 'X-Profile-Id': string; 'X-User-Password': string }): Promise<BaseDto<unknown>>
 }
 
@@ -36,11 +36,11 @@ export class CommunityRepositoryImpl implements CommunityRepository {
   }
 
   async likePost(postId, headers) {
-    return apiClient.put<{ postId: string; likedByMe: boolean; likeCount: number }>(apiEndpoints.communityPostLike(postId), undefined, { headers })
+    return apiClient.put<CommunityPostLikeDto>(apiEndpoints.communityPostLike(postId), undefined, { headers })
   }
 
   async unlikePost(postId, headers) {
-    return apiClient.delete<{ postId: string; likedByMe: boolean; likeCount: number }>(apiEndpoints.communityPostLike(postId), { headers })
+    return apiClient.delete<CommunityPostLikeDto>(apiEndpoints.communityPostLike(postId), { headers })
   }
 
   async startPost(postId, headers) {

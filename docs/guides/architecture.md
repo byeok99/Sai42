@@ -17,9 +17,10 @@ Browser
 
 ## Backend
 
-`backend/app`는 도메인별 router/service/repository 구조를 사용합니다. 현재는 FastAPI 진입점과
-공통 비동기 DB 세션, 공공데이터용 `places` 모델 및 마이그레이션을 제공합니다. Place API를
-포함한 실제 비즈니스 API는 아직 구현하지 않습니다.
+`backend/app`는 도메인별 router/service/repository 구조를 사용합니다. 현재는 FastAPI 진입점,
+공통 비동기 DB 세션, 공통 응답·예외·요청 추적, Health·Meta Options API, 공공데이터용
+`places` 모델과 멱등성 레코드 마이그레이션을 제공합니다. Place API를 포함한 실제 비즈니스
+API는 아직 구현하지 않습니다.
 
 ## 데이터와 외부 서비스
 

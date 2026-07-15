@@ -1,0 +1,149 @@
+:root {
+  /* Colors */
+  --pink: #ff8295;
+  --pink-gradient-start: #ff8295;
+  --pink-gradient-end: #ff6079;
+  --cream: #fffaf5;
+  --ink: #4b3d40;
+  --muted: #8b797d;
+  --line: #eee3e0;
+  --lav: #ddd1ff;
+  --mint: #d7f0e6;
+  --yellow: #ffe8a5;
+
+  /* Shadows */
+  --shadow: 0 12px 30px rgba(91, 61, 68, 0.12);
+  --btn-shadow: 0 9px 18px rgba(245, 94, 118, 0.23);
+  --marker-shadow: 0 6px 11px rgba(70, 50, 55, 0.2);
+}
+
+/* Reset and Base Styles */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: Arial, 'Apple SD Gothic Neo', sans-serif;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at 10% 20%, #ffe2e8, transparent 28%),
+    radial-gradient(circle at 90% 80%, #e4ddff, transparent 30%), #f6efeb;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  border: 0;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+/* Shell & Mobile Device Container Wrapper (Yes24 Style Centered Mobile Web) */
+.shell {
+  min-height: 100vh;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  padding: 0;
+  background: #f0f0f0;
+}
+
+.phone {
+  width: 35%;
+  min-width: 390px;
+  max-width: 480px;
+  height: 100vh;
+  background: var(--cream);
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.08);
+  border: none;
+  border-radius: 0;
+}
+
+/* Hide status bar mock for full-height web experience */
+.status-bar {
+  display: none;
+}
+
+/* App page shell taking full height */
+.app-container {
+  height: 100%;
+  position: relative;
+}
+
+.page {
+  height: 100%;
+  background: var(--cream);
+}
+
+.page.with-nav {
+  padding-bottom: 74px; /* Space for Bottom Nav Bar */
+}
+
+/* Scroll Area */
+.scroll-area {
+  height: calc(100% - 72px);
+  overflow-y: auto;
+  padding: 0 15px 28px;
+  scrollbar-width: none;
+}
+
+.scroll-area::-webkit-scrollbar {
+  display: none;
+}
+
+/* Desktop layout helper (Note panel on PC) */
+.desktop-note {
+  width: 270px;
+  padding: 19px;
+  border-radius: 21px;
+  background: rgba(255, 255, 255, 0.75);
+  box-shadow: var(--shadow);
+}
+
+.desktop-note strong {
+  font-size: 16px;
+}
+
+.desktop-note p {
+  font-size: 11px;
+  line-height: 1.6;
+  color: #66575a;
+}
+
+/* Media Queries for responsive full screen on smaller widths */
+@media (max-width: 760px) {
+  body {
+    background: var(--cream);
+  }
+
+  .shell {
+    display: block;
+  }
+
+  .phone {
+    width: 100vw;
+    height: 100vh;
+    min-height: 100vh;
+    max-width: 100%;
+    box-shadow: none;
+  }
+
+  .desktop-note {
+    display: none;
+  }
+}

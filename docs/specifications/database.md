@@ -311,7 +311,6 @@ CHECK(length(request_fingerprint) = 64)
 수 있다. 같은 unique key의 `request_fingerprint`가 다르면 key 재사용 충돌이다.
 
 ## 11. FK와 삭제 정책
-
 | 자식 FK | 부모 | 삭제 정책 |
 |---|---|---|
 | `chat_sessions.profile_id` | `user_profiles.id` | CASCADE |
@@ -411,7 +410,6 @@ GROUP BY content_id;
 3. `DELETED` 행의 상태, 공개일, 코멘트, 작성자 스냅샷을 재발행 규칙대로 갱신한다.
 4. 기존 좋아요 행은 변경하지 않는다.
 5. 커밋한다.
-
 ### 13.7 Idempotency-Key 요청
 
 1. 인증과 기본 요청 DTO를 먼저 검증한다.

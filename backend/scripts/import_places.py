@@ -13,13 +13,13 @@ from pathlib import Path
 from sqlalchemy import create_engine, inspect, select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
-from app.place.constants import (
+from app.place.domain.constants import (
     ACTIVITIES_BY_CONTENT_TYPE_ID,
     DISTRICT_BY_ADDRESS_PREFIX,
     EXCLUDED_CONTENT_TYPE_IDS,
     RECOMMENDABLE_CONTENT_TYPE_IDS,
 )
-from app.place.models import Place
+from app.place.infrastructure.models import Place
 
 SEOUL = timezone(timedelta(hours=9), name="Asia/Seoul")
 EXPECTED_ITEM_FIELDS = {

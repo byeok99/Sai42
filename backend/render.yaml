@@ -4,11 +4,22 @@ services:
     runtime: python
     rootDir: backend
     buildCommand: pip install -r requirements.txt
+    healthCheckPath: /api/v1/health
     startCommand: >-
       python -m alembic upgrade head &&
       python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1
     envVars:
       - key: PYTHON_VERSION
-        value: "3.12"
+        value: "3.12.11"
+      - key: APP_ENV
+        value: production
       - key: DATABASE_URL
         value: "sqlite+aiosqlite:///./data/sai42.db"
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: SQLITE_BUSY_TIMEOUT_MS
+        value: "5000"
+      - key: AUTH_RATE_LIMIT_MAX_ATTEMPTS
+        value: "10"
+      - key: AUTH_RATE_LIMIT_WINDOW_SECONDS
+        value: "60"

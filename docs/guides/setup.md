@@ -41,6 +41,17 @@ python -m pip install -r requirements-dev.txt
 python -m uvicorn app.main:app --reload
 ```
 
+서버 실행 후 다음 URL에서 공통 API를 직접 확인할 수 있습니다.
+
+- Swagger UI: `http://localhost:8000/docs`
+- ReDoc: `http://localhost:8000/redoc`
+- OpenAPI JSON: `http://localhost:8000/openapi.json`
+- Health API: `http://localhost:8000/api/v1/health`
+- Meta Options API: `http://localhost:8000/api/v1/meta/options`
+
+Swagger UI의 `Try it out`을 사용하면 모든 현재·향후 API를 공통 응답 및 오류 schema와 함께
+테스트할 수 있습니다.
+
 macOS/Linux:
 
 ```bash

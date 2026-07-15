@@ -9,7 +9,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from app.database import Base
-from app.place.models import Place
+from app.place.infrastructure.models import Place
 from scripts.import_places import import_places
 
 

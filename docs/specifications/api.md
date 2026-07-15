@@ -236,6 +236,12 @@ Idempotency-Key: optional-uuid
 
 동일한 profileId, URL, `Idempotency-Key` 요청은 최초 결과를 반환한다.
 
+멱등성 레코드는 `idempotency_records`에 저장한다. 같은 key를 다른 요청 본문에 재사용하면
+409 `COMMON_IDEMPOTENCY_KEY_REUSED`, 동일 요청이 아직 처리 중이면 409
+`COMMON_IDEMPOTENCY_REQUEST_IN_PROGRESS`를 반환한다. 요청 인증과 기본 DTO 검증을 통과한 뒤
+레코드를 선점하며, 완료한 최초 HTTP 상태와 공통 응답 body를 재요청에 사용한다. 5xx로 끝난
+처리는 재시도할 수 있도록 완료 응답으로 보존하지 않는다.
+
 ### 5.5 문자열 제한
 
 | 필드 | 제한 |
@@ -269,6 +275,7 @@ Idempotency-Key: optional-uuid
 ```
 
 장소의 API 식별자와 path parameter는 모두 TourAPI `contentId` 문자열을 사용한다. 별도 장소 UUID는 만들지 않는다.
+DB에서 아직 분류되지 않은 `district`, `indoorOutdoor`와 존재하지 않는 `imageUrl`은 `null`로 반환하며 임의 값으로 보완하지 않는다.
 
 ### 6.2 `CourseConditionDto`
 
@@ -611,6 +618,7 @@ Idempotency-Key: optional-uuid
 - 201 `data`: `sessionId`, `status`, `assistantMessage`, `courseDraft`
 - `courseDraft`: `draftId`, `version`, 제목, 날짜, 시간대, 전체 멘트, `estimatedTotalMinutes`, 조건, 태그, 날씨, 장소, 지도
 - `courseDraft.places`는 최소 2개, 최대 4개다. 이 범위를 벗어난 AI 응답은 저장하지 않고 재시도하거나 `CHAT_AI_PROVIDER_ERROR`로 처리한다.
+- 분위기처럼 DB에 정형 값이 없는 주관적 조건은 향후 AI가 실제 DB 장소의 제목·분류·주소 등만 근거로 판단한다. 이 판단을 위해 외부 장소나 임의 장소를 후보에 추가하지 않는다.
 - 오류: 409 `DATE_COURSE_ACTIVE_ALREADY_EXISTS`, 422 `CHAT_NO_RECOMMENDABLE_PLACES`, 422 `CHAT_INVALID_DATE_CONDITION`, 502 `CHAT_AI_PROVIDER_ERROR`, 503 `CHAT_AI_TEMPORARILY_UNAVAILABLE`
 
 ### 12.2 `GET /chat/sessions/{sessionId}`
@@ -880,7 +888,7 @@ Idempotency-Key: optional-uuid
 
 | 영역 | 오류 코드 |
 |---|---|
-| Common | `COMMON_BAD_REQUEST`, `COMMON_VALIDATION_ERROR`, `COMMON_NOT_FOUND`, `COMMON_INTERNAL_SERVER_ERROR`, `COMMON_RATE_LIMIT_EXCEEDED` |
+| Common | `COMMON_BAD_REQUEST`, `COMMON_VALIDATION_ERROR`, `COMMON_NOT_FOUND`, `COMMON_INTERNAL_SERVER_ERROR`, `COMMON_RATE_LIMIT_EXCEEDED`, `COMMON_EXTERNAL_SERVICE_ERROR`, `COMMON_EXTERNAL_SERVICE_UNAVAILABLE`, `COMMON_IDEMPOTENCY_KEY_REUSED`, `COMMON_IDEMPOTENCY_REQUEST_IN_PROGRESS` |
 | Auth | `AUTH_NICKNAME_ALREADY_EXISTS`, `AUTH_CREDENTIALS_REQUIRED`, `AUTH_INVALID_PROFILE_ID_FORMAT`, `AUTH_INVALID_CREDENTIALS`, `AUTH_FORBIDDEN`, `AUTH_TOO_MANY_ATTEMPTS` |
 | Place | `PLACE_NOT_FOUND`, `PLACE_INVALID_COORDINATES`, `PLACE_RADIUS_OUT_OF_RANGE` |
 | Weather | `WEATHER_DATE_OUT_OF_RANGE`, `WEATHER_PROVIDER_ERROR` |

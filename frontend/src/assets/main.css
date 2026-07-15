@@ -1,0 +1,170 @@
+:root {
+  /* Colors */
+  --pink: #ff8295;
+  --pink-gradient-start: #ff8295;
+  --pink-gradient-end: #ff6079;
+  --cream: #fffaf5;
+  --ink: #4b3d40;
+  --muted: #8b797d;
+  --line: #eee3e0;
+  --lav: #ddd1ff;
+  --mint: #d7f0e6;
+  --yellow: #ffe8a5;
+
+  /* Shadows */
+  --shadow: 0 12px 30px rgba(91, 61, 68, 0.12);
+  --btn-shadow: 0 9px 18px rgba(245, 94, 118, 0.23);
+  --marker-shadow: 0 6px 11px rgba(70, 50, 55, 0.2);
+}
+
+/* Reset and Base Styles */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: Arial, "Apple SD Gothic Neo", sans-serif;
+  color: var(--ink);
+  background: radial-gradient(circle at 10% 20%, #ffe2e8, transparent 28%),
+              radial-gradient(circle at 90% 80%, #e4ddff, transparent 30%),
+              #f6efeb;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button, input, textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  border: 0;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+/* Shell & Mobile Device Container Wrapper (Wireframe Match) */
+.shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  padding: 20px;
+}
+
+.phone {
+  width: 390px;
+  height: min(844px, calc(100vh - 24px));
+  min-height: 680px;
+  background: var(--cream);
+  border: 10px solid #292426;
+  border-radius: 42px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 28px 70px rgba(63, 41, 47, 0.24);
+}
+
+/* Status Bar Area Placeholder */
+.phone::before {
+  content: "";
+  position: absolute;
+  z-index: 50;
+  top: 7px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 110px;
+  height: 24px;
+  background: #292426;
+  border-radius: 20px;
+}
+
+.status-bar {
+  height: 38px;
+  padding: 10px 18px 0;
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+/* App page shell with nav bar spacing */
+.app-container {
+  height: calc(100% - 38px);
+  position: relative;
+}
+
+.page {
+  height: 100%;
+  background: var(--cream);
+}
+
+.page.with-nav {
+  padding-bottom: 74px; /* Space for Bottom Nav Bar */
+}
+
+/* Scroll Area */
+.scroll-area {
+  height: calc(100% - 72px);
+  overflow-y: auto;
+  padding: 0 15px 28px;
+  scrollbar-width: none;
+}
+
+.scroll-area::-webkit-scrollbar {
+  display: none;
+}
+
+/* Desktop layout helper (Note panel on PC) */
+.desktop-note {
+  width: 270px;
+  padding: 19px;
+  border-radius: 21px;
+  background: rgba(255, 255, 255, 0.75);
+  box-shadow: var(--shadow);
+}
+
+.desktop-note strong {
+  font-size: 16px;
+}
+
+.desktop-note p {
+  font-size: 11px;
+  line-height: 1.6;
+  color: #66575a;
+}
+
+/* Media Queries for responsive full screen on smaller widths */
+@media (max-width: 760px) {
+  body {
+    background: var(--cream);
+  }
+
+  .shell {
+    display: block;
+    padding: 0;
+  }
+
+  .phone {
+    width: 100vw;
+    height: 100vh;
+    min-height: 100vh;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .phone::before,
+  .status-bar,
+  .desktop-note {
+    display: none;
+  }
+
+  .app-container {
+    height: 100%;
+  }
+}

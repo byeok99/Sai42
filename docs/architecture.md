@@ -17,8 +17,14 @@ Browser
 
 ## Backend
 
-`backend/app`는 향후 도메인별 router/service/repository 구조를 추가할 수 있도록 빈 Python 패키지만 준비합니다. 현재는 FastAPI 애플리케이션 객체를 제공하는 최소 진입점만 존재합니다. 모델, API, 마이그레이션은 구현하지 않습니다.
+`backend/app`는 도메인별 router/service/repository 구조를 사용합니다. 현재는 FastAPI 진입점과
+공통 비동기 DB 세션, 공공데이터용 `places` 모델 및 마이그레이션을 제공합니다. Place API를
+포함한 실제 비즈니스 API는 아직 구현하지 않습니다.
 
 ## 데이터와 외부 서비스
 
-SQLite 파일과 원본 데이터는 Git에서 제외합니다. OpenAI, 날씨, Kakao Maps 연동은 환경변수 이름만 예약하며 실제 호출은 구현하지 않습니다.
+별도로 전달받은 원본 데이터와 일반 SQLite 파일은 Git에서 제외합니다. Render 배포용
+`backend/data/sai42.db`만 예외적으로 추적하며, 한국관광공사 TourAPI 장소 데이터는
+`backend/scripts/import_places.py`로 검증 후 적재합니다. Render에서는 이 DB를 임시 로컬
+파일로 사용하므로 런타임 변경은 재배포나 재시작 시 커밋된 상태로 초기화됩니다. OpenAI, 날씨,
+Kakao Maps 연동은 환경변수 이름만 예약하며 실제 호출은 구현하지 않습니다.

@@ -7,6 +7,7 @@ export interface HistoryRepository {
   listMyDateCourses(headers: { 'X-Profile-Id': string; 'X-User-Password': string }): Promise<BaseDto<HistoryCourseSummaryDto[]>>
   getMyDateCourseDetail(courseId: string, headers: { 'X-Profile-Id': string; 'X-User-Password': string }): Promise<BaseDto<DateCourseDto>>
   restartCourse(courseId: string, headers: { 'X-Profile-Id': string; 'X-User-Password': string }): Promise<BaseDto<DateCourseDto>>
+  deleteMyDateCourse(courseId: string, headers: { 'X-Profile-Id': string; 'X-User-Password': string }): Promise<BaseDto<void>>
 }
 
 export class HistoryRepositoryImpl implements HistoryRepository {
@@ -20,6 +21,10 @@ export class HistoryRepositoryImpl implements HistoryRepository {
 
   async restartCourse(courseId: string, headers: { 'X-Profile-Id': string; 'X-User-Password': string }) {
     return apiClient.post<DateCourseDto>(apiEndpoints.restartDateCourse(courseId), undefined, { headers })
+  }
+
+  async deleteMyDateCourse(courseId: string, headers: { 'X-Profile-Id': string; 'X-User-Password': string }) {
+    return apiClient.delete<void>(`${apiEndpoints.myDateCourses}/${courseId}`, { headers })
   }
 }
 

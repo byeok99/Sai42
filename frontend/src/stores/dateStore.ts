@@ -8,7 +8,7 @@ import { identityService } from '@/services/identityService'
 import { rankingService } from '@/services/rankingService'
 import type { AuthenticatedApiHeaders } from '@/types/api/common'
 import type { CommunityPostDetailDto, CommunityPostSummaryDto } from '@/types/api/community'
-import type { DateCourseDto, HistoryCourseSummaryDto } from '@/types/api/course'
+import type { DateCourseDto, HistoryCourseSummaryDto, WeatherSummaryDto } from '@/types/api/course'
 import type { CourseEditAction, CreateChatSessionRequestDto } from '@/types/api/chat'
 
 type SurveyKey = 'pref' | 'mood' | 'density' | 'move'
@@ -90,10 +90,16 @@ export const useDateStore = defineStore('dateStore', () => {
   const sessionId = ref<string | null>(null)
   const draftId = ref<string | null>(null)
   const draftVersion = ref<number | null>(null)
-  const course = ref<{ title: string; places: string[]; coords: [number, number][] }>({
+  const course = ref<{
+    title: string
+    places: string[]
+    coords: [number, number][]
+    weather: WeatherSummaryDto | null
+  }>({
     title: '',
     places: [],
     coords: [],
+    weather: null,
   })
   const messages = ref<Array<{ role: 'bot' | 'user'; content: string }>>([])
   const activeCourse = ref<DateCourseDto | null>(null)
@@ -172,6 +178,7 @@ export const useDateStore = defineStore('dateStore', () => {
     version: number
     title: string
     places: Array<{ place: { name: string; latitude: number | null; longitude: number | null } }>
+    weather: WeatherSummaryDto | null
   }) {
     draftId.value = draft.draftId
     draftVersion.value = draft.version
@@ -183,6 +190,7 @@ export const useDateStore = defineStore('dateStore', () => {
           ? [[item.place.latitude, item.place.longitude] as [number, number]]
           : [],
       ),
+      weather: draft.weather,
     }
   }
 
@@ -221,6 +229,36 @@ export const useDateStore = defineStore('dateStore', () => {
     authenticate(nickname, inputPassword, true)
   const login = (nickname: string, inputPassword: string) =>
     authenticate(nickname, inputPassword, false)
+
+  function logout() {
+    name.value = ''
+    profileId.value = null
+    password.value = null
+    surveyDone.value = false
+    sessionId.value = null
+    draftId.value = null
+    draftVersion.value = null
+    course.value = { title: '', places: [], coords: [], weather: null }
+    messages.value = []
+    activeCourse.value = null
+    authMode.value = 'enter'
+    triggerToast('로그아웃 되었습니다 👋')
+  }
+
+  async function fetchChatSession() {
+    if (!sessionId.value) return
+    try {
+      const response = await chatService.getSession(sessionId.value, authHeaders())
+      if (!response.data.draft) return
+      messages.value = response.data.messages.map((message) => ({
+        role: message.role === 'ASSISTANT' ? 'bot' : 'user',
+        content: message.content,
+      }))
+      applyDraft(response.data.draft)
+    } catch (error) {
+      if (error instanceof Error) triggerToast(error.message)
+    }
+  }
 
   function toggleSurveyOption(key: SurveyKey, option: string) {
     const step = surveyStepsList[surveyStep.value]!
@@ -302,7 +340,7 @@ export const useDateStore = defineStore('dateStore', () => {
     sessionId.value = null
     draftId.value = null
     draftVersion.value = null
-    course.value = { title: '', places: [], coords: [] }
+    course.value = { title: '', places: [], coords: [], weather: null }
     messages.value = []
     showSurvey.value = true
   }
@@ -542,6 +580,8 @@ export const useDateStore = defineStore('dateStore', () => {
     history,
     register,
     login,
+    logout,
+    fetchChatSession,
     toggleSurveyOption,
     nextSurveyStep,
     prevSurveyStep,

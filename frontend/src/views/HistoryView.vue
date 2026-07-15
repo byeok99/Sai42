@@ -77,6 +77,7 @@ async function deletePost(courseId: string) {
     await store.deleteCommunityPost(post.postId)
   }
 }
+
 </script>
 
 <template>

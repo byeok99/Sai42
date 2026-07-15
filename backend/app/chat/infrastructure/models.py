@@ -24,6 +24,9 @@ class ChatSession(Base):
     status: Mapped[str] = mapped_column(Text, nullable=False)
     conditions_json: Mapped[str] = mapped_column(Text, nullable=False)
     messages_json: Mapped[str] = mapped_column(Text, nullable=False)
+    memory_json: Mapped[str] = mapped_column(
+        Text, nullable=False, default="{}", server_default="{}"
+    )
     draft_json: Mapped[str | None] = mapped_column(Text)
     draft_version: Mapped[int] = mapped_column(Integer, nullable=False)
     weather_json: Mapped[str | None] = mapped_column(Text)

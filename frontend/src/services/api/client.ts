@@ -1,7 +1,12 @@
 import type { ApiHeaders, BaseDto, ErrorResponseDto } from '@/types/api/common'
 
-const DEFAULT_BASE_URL = 'https://sai42-backend.onrender.com/api/v1'
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || DEFAULT_BASE_URL
+const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '')
+const DEFAULT_BASE_URL = configuredBaseUrl
+  ? configuredBaseUrl.endsWith('/api/v1')
+    ? configuredBaseUrl
+    : `${configuredBaseUrl}/api/v1`
+  : 'https://sai42-backend.onrender.com/api/v1'
+const API_BASE_URL = DEFAULT_BASE_URL
 
 export class ApiRequestError extends Error {
   constructor(

@@ -12,6 +12,7 @@ const router = useRouter()
 
 const chatInput = ref('')
 const messagesContainer = ref<HTMLDivElement | null>(null)
+const showMapModal = ref(false)
 
 function scrollToBottom() {
   nextTick(() => {
@@ -34,7 +35,7 @@ function handleQuickAction(text: string) {
 }
 
 function triggerMapFit() {
-  store.triggerToast('전체 코스를 한눈에 보여드릴게요')
+  showMapModal.value = true
 }
 
 function confirmCourse() {
@@ -92,7 +93,7 @@ onMounted(() => {
           <button class="small-btn" @click="triggerMapFit">전체보기</button>
         </div>
         <div class="map-container">
-          <LeafletMap :coords="store.course.coords" :places="store.course.places" />
+          <LeafletMap :coords="store.course.coords" :places="store.course.places" static />
         </div>
       </BaseCard>
 
@@ -154,6 +155,20 @@ onMounted(() => {
     <!-- Decide Fixed Bottom Panel -->
     <div class="decide-action-bar">
       <BaseButton variant="primary" full @click="confirmCourse"> 이 코스로 결정하기 💗 </BaseButton>
+    </div>
+    <!-- Fullscreen Map Modal -->
+    <div v-if="showMapModal" class="overlay open map-modal-overlay">
+      <div class="modal map-modal">
+        <div class="modal-header">
+          <h3>전체 데이트 코스</h3>
+        </div>
+        <div class="modal-map-container">
+          <LeafletMap :coords="store.course.coords" :places="store.course.places" />
+        </div>
+        <div class="modalacts">
+          <BaseButton variant="secondary" full @click="showMapModal = false">닫기</BaseButton>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -564,5 +579,39 @@ onMounted(() => {
   bottom: 74px;
   padding: 10px 15px 13px;
   background: linear-gradient(transparent, rgba(255, 250, 245, 0.97) 38%);
+}
+
+.map-modal-overlay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.map-modal {
+  width: 100%;
+  max-width: 440px;
+  height: 80vh;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 24px;
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+
+.modal-header h3 {
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.modal-map-container {
+  flex: 1;
+  border-radius: 16px;
+  overflow: hidden;
+  margin-bottom: 12px;
+  border: 1px solid var(--line);
 }
 </style>

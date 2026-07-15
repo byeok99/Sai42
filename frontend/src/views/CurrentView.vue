@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDateStore } from '@/stores/dateStore'
 import BaseCard from '@/components/common/BaseCard.vue'
 import BaseButton from '@/components/common/BaseButton.vue'
 import LeafletMap from '@/components/map/LeafletMap.vue'
+
+const showMapModal = ref(false)
 
 const store = useDateStore()
 const router = useRouter()
@@ -69,12 +71,14 @@ function navigateToChat() {
         </div>
 
         <!-- Minimap Wrapper -->
-        <BaseCard class="minimap">
+        <BaseCard class="minimap-wrapper">
           <LeafletMap
             v-if="store.activeCourse"
             :coords="store.activeCourse.coords"
             :places="store.activeCourse.places"
+            static
           />
+          <button class="small-btn map-zoom-btn" @click="showMapModal = true">전체보기</button>
         </BaseCard>
 
         <!-- Places List -->
@@ -122,6 +126,24 @@ function navigateToChat() {
           데이트 종료하기
         </BaseButton>
         <p class="help-text">종료 후 한 줄 코멘트를 남기면 랭킹보드에 공유돼요.</p>
+      </div>
+    </div>
+    <!-- Fullscreen Map Modal -->
+    <div v-if="showMapModal" class="overlay open map-modal-overlay">
+      <div class="modal map-modal">
+        <div class="modal-header">
+          <h3>진행 중인 데이트 코스</h3>
+        </div>
+        <div class="modal-map-container">
+          <LeafletMap
+            v-if="store.activeCourse"
+            :coords="store.activeCourse.coords"
+            :places="store.activeCourse.places"
+          />
+        </div>
+        <div class="modalacts">
+          <BaseButton variant="secondary" full @click="showMapModal = false">닫기</BaseButton>
+        </div>
       </div>
     </div>
   </div>
@@ -362,5 +384,64 @@ function navigateToChat() {
   color: var(--muted);
   font-size: 10px;
   margin-top: 10px;
+}
+
+.minimap-wrapper {
+  height: 130px;
+  margin-top: 11px;
+  position: relative;
+  overflow: hidden;
+  border-radius: 21px;
+  box-shadow: var(--shadow);
+}
+
+.map-zoom-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 10;
+  min-height: 28px;
+  padding: 0 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  color: #db536a;
+  font-size: 9px;
+  font-weight: 800;
+  border: 0;
+}
+
+.map-modal-overlay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.map-modal {
+  width: 100%;
+  max-width: 440px;
+  height: 80vh;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 24px;
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+
+.modal-header h3 {
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.modal-map-container {
+  flex: 1;
+  border-radius: 16px;
+  overflow: hidden;
+  margin-bottom: 12px;
+  border: 1px solid var(--line);
 }
 </style>

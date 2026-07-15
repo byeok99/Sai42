@@ -3,10 +3,15 @@ import { onMounted, onUnmounted, ref, watch } from 'vue'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
-const props = defineProps<{
+interface Props {
   coords: [number, number][]
   places: string[]
-}>()
+  static?: boolean
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  static: false,
+})
 
 const mapContainer = ref<HTMLDivElement | null>(null)
 let map: L.Map | null = null
@@ -28,8 +33,14 @@ function initMap() {
 
   // Center around Seoul Hanyang University
   map = L.map(mapContainer.value, {
-    zoomControl: false,
+    zoomControl: !props.static,
     attributionControl: false,
+    dragging: !props.static,
+    touchZoom: !props.static,
+    doubleClickZoom: !props.static,
+    scrollWheelZoom: !props.static,
+    boxZoom: !props.static,
+    keyboard: !props.static,
   }).setView([37.5564, 127.0445], 14)
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -106,7 +117,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div ref="mapContainer" class="leaflet-map-element"></div>
+  <div ref="mapContainer" :class="['leaflet-map-element', { 'static-map': static }]"></div>
 </template>
 
 <style>
@@ -139,5 +150,9 @@ onUnmounted(() => {
 .custom-div-icon {
   background: transparent;
   border: none;
+}
+
+.static-map {
+  pointer-events: none;
 }
 </style>

@@ -10,7 +10,6 @@ const route = useRoute()
 const store = useDateStore()
 
 const showNav = computed(() => route.name !== 'entrance' && route.name !== undefined)
-const isDev = import.meta.env.DEV
 </script>
 
 <template>
@@ -36,25 +35,17 @@ const isDev = import.meta.env.DEV
       <SurveyModal />
       <CommentModal />
 
+      <div v-if="store.loading" class="request-overlay" aria-live="polite">
+        <div class="request-loader"><span>42</span><i>✨</i><b>💞</b></div>
+        <strong>사이봇이 정성껏 준비하고 있어요</strong>
+        <p>LLM 기반 추천은 조금 시간이 걸릴 수 있어요.<br />느긋하게 기다려 주세요 ☕</p>
+      </div>
+
       <!-- Toast Alerts -->
       <div :class="['toast', { show: store.toastVisible }]">
         {{ store.toastMessage }}
       </div>
     </div>
-
-    <!-- Desktop Sidebar Guide Panel -->
-    <aside v-if="isDev" class="desktop-note">
-      <strong>사이42 웹 프레임</strong>
-      <p>
-        입장 → 취향 조사 → 챗봇 코스 조정 → 지도 확인 → 코스 결정 → 데이트 진행 → 후기 등록 흐름을
-        이용하실 수 있습니다.
-      </p>
-      <div class="demo">
-        <b>데모 계정</b>
-        닉네임: 복숭아와호두<br />
-        비밀번호: 0420
-      </div>
-    </aside>
   </div>
 </template>
 
@@ -83,17 +74,57 @@ const isDev = import.meta.env.DEV
   opacity: 1;
 }
 
-.demo {
-  padding: 11px;
-  border-radius: 14px;
-  background: #fff2f5;
-  font-size: 10px;
-  line-height: 1.55;
-  margin-top: 10px;
+.request-overlay {
+  position: absolute;
+  z-index: 140;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 9px;
+  padding: 28px;
+  background: rgba(255, 250, 245, 0.91);
+  text-align: center;
 }
-
-.demo b {
-  display: block;
-  color: #df5269;
+.request-overlay strong {
+  font-size: 15px;
+}
+.request-overlay p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+.request-loader {
+  position: relative;
+  width: 78px;
+  height: 78px;
+  display: grid;
+  place-items: center;
+  border-radius: 30px;
+  background: linear-gradient(135deg, #ffe2e8, #e7ddff);
+  color: #e75d74;
+  font-size: 25px;
+  font-weight: 900;
+  animation: loader-float 1.4s ease-in-out infinite;
+}
+.request-loader i,
+.request-loader b {
+  position: absolute;
+  font-style: normal;
+  font-size: 17px;
+}
+.request-loader i {
+  right: -9px;
+  top: -8px;
+}
+.request-loader b {
+  left: -10px;
+  bottom: -8px;
+}
+@keyframes loader-float {
+  50% {
+    transform: translateY(-7px) rotate(3deg);
+  }
 }
 </style>

@@ -13,17 +13,26 @@ export interface CommunityPostSummaryDto {
   rank?: number
 }
 
-export interface CommunityPostDetailDto extends CommunityPostSummaryDto {
-  mainDistrict: string
+import type { CourseMapDto, CoursePlaceDto } from '@/types/api/course'
+
+export interface CommunityPostDetailDto {
+  postId: string
+  owner: boolean
+  courseId: string
+  courseTitle: string
+  authorNickname: string
+  oneLineComment: string
+  date: string
   timeSlot: string
   overallComment: string
+  conditions: unknown
   tags: string[]
-  places: Array<{
-    contentId: string
-    title: string
-    orderNo: number
-    sweetComment: string
-  }>
+  places: CoursePlaceDto[]
+  map: CourseMapDto
+  courseLikeCount: number
+  placeHeartCount: number
+  likedByMe: boolean
+  publishedAt: string
 }
 
 export interface CommunityPostCreateRequestDto {
@@ -39,4 +48,9 @@ export interface CommunityPostLikeDto {
   postId: string
   likedByMe: boolean
   likeCount: number
+}
+
+export interface StartCommunityCourseDto {
+  activeCourse: import('@/types/api/course').DateCourseDto
+  copyResult: { sourcePostId: string; warnings: string[] }
 }

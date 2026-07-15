@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useDateStore } from '@/stores/dateStore'
 import BaseCard from '@/components/common/BaseCard.vue'
+import LeafletMap from '@/components/map/LeafletMap.vue'
 
 const store = useDateStore()
+const router = useRouter()
 const rankTab = ref<'popular' | 'masters' | 'new'>('popular')
 
 const sortedRankings = computed(() => {
@@ -20,6 +23,10 @@ function showHelp() {
 
 const editingId = ref<string | null>(null)
 const editCommentText = ref('')
+const scrollArea = ref<HTMLElement | null>(null)
+const pullDistance = ref(0)
+const pullStartY = ref<number | null>(null)
+const refreshing = ref(false)
 
 function startEdit(postId: string, comment: string) {
   editingId.value = postId
@@ -31,8 +38,58 @@ function cancelEdit() {
   editCommentText.value = ''
 }
 
-onMounted(() => { void store.loadRankings() })
-watch(rankTab, (tab) => { void store.loadRankings(tab === 'new' ? 'LATEST' : 'POPULAR') })
+async function saveEdit(postId: string) {
+  if (await store.updateCommunityPost(postId, editCommentText.value)) cancelEdit()
+}
+
+async function handleDelete(postId: string) {
+  if (confirm('랭킹보드에서 이 게시글을 삭제할까요?')) await store.deleteCommunityPost(postId)
+}
+
+async function startCourse(postId: string) {
+  if (await store.startCommunityCourse(postId)) await router.push({ name: 'current' })
+}
+
+function toggleRoute(postId: string) {
+  if (store.selectedCommunityCourse?.postId === postId) {
+    store.selectedCommunityCourse = null
+  } else {
+    void store.loadCommunityCourse(postId)
+  }
+}
+
+async function refreshRankings() {
+  if (refreshing.value) return
+  refreshing.value = true
+  await store.loadRankings(rankTab.value === 'new' ? 'LATEST' : 'POPULAR')
+  refreshing.value = false
+}
+
+function startPull(event: TouchEvent) {
+  if (scrollArea.value?.scrollTop === 0) pullStartY.value = event.touches[0]?.clientY ?? null
+}
+
+function movePull(event: TouchEvent) {
+  if (pullStartY.value === null) return
+  pullDistance.value = Math.min(
+    78,
+    Math.max(0, (event.touches[0]?.clientY ?? pullStartY.value) - pullStartY.value),
+  )
+}
+
+function endPull() {
+  const shouldRefresh = pullDistance.value >= 58
+  pullStartY.value = null
+  pullDistance.value = 0
+  if (shouldRefresh) void refreshRankings()
+}
+
+onMounted(() => {
+  void refreshRankings()
+})
+watch(rankTab, () => {
+  void refreshRankings()
+})
 </script>
 
 <template>
@@ -45,7 +102,20 @@ watch(rankTab, (tab) => { void store.loadRankings(tab === 'new' ? 'LATEST' : 'PO
       <button class="help-btn" @click="showHelp">?</button>
     </header>
 
-    <div class="scroll-area">
+    <div
+      ref="scrollArea"
+      class="scroll-area"
+      @touchstart="startPull"
+      @touchmove="movePull"
+      @touchend="endPull"
+    >
+      <div
+        class="pull-indicator"
+        :class="{ visible: pullDistance > 0 || refreshing }"
+        :style="{ height: `${refreshing ? 38 : pullDistance}px` }"
+      >
+        {{ refreshing ? '랭킹을 새로 불러오는 중…' : '놓으면 새로고침' }}
+      </div>
       <!-- Master Banner Card -->
       <BaseCard class="master-card">
         <span class="banner-label">이번 주 데이트 마스터</span>
@@ -85,24 +155,61 @@ watch(rankTab, (tab) => { void store.loadRankings(tab === 'new' ? 'LATEST' : 'PO
               <input
                 v-model="editCommentText"
                 class="edit-input"
-                @keydown.enter="cancelEdit"
+                @keydown.enter="saveEdit(item.postId)"
               />
               <div class="edit-actions">
-                <button class="text-action-btn save-btn" @click="cancelEdit">닫기</button>
+                <button class="text-action-btn save-btn" @click="saveEdit(item.postId)">
+                  저장
+                </button>
                 <button class="text-action-btn" @click="cancelEdit">취소</button>
               </div>
             </div>
             <div v-else class="comment-body">
               <div class="comment">“{{ item.oneLineComment }}”</div>
               <div v-if="item.authorNickname === store.name" class="my-post-actions">
-                <button class="text-action-btn" @click="startEdit(item.postId, item.oneLineComment)">보기</button>
+                <button
+                  class="text-action-btn"
+                  @click="startEdit(item.postId, item.oneLineComment)"
+                >
+                  수정
+                </button>
+                <button class="text-action-btn delete-text" @click="handleDelete(item.postId)">
+                  삭제
+                </button>
               </div>
             </div>
           </div>
-          <div class="places"><span v-for="tag in item.tags" :key="tag">{{ tag }}</span></div>
+          <div class="places">
+            <span v-for="tag in item.tags" :key="tag">{{ tag }}</span>
+          </div>
+          <button class="route-btn" @click="toggleRoute(item.postId)">
+            {{
+              store.selectedCommunityCourse?.postId === item.postId
+                ? '코스 경로 닫기'
+                : '🗺️ 코스 경로 보기'
+            }}
+          </button>
+          <div v-if="store.selectedCommunityCourse?.postId === item.postId" class="route-preview">
+            <LeafletMap
+              :coords="
+                store.selectedCommunityCourse.places.flatMap((place) =>
+                  place.place.latitude !== null && place.place.longitude !== null
+                    ? [[place.place.latitude, place.place.longitude]]
+                    : [],
+                )
+              "
+              :places="store.selectedCommunityCourse.places.map((place) => place.place.name)"
+              static
+            />
+          </div>
           <div class="actions">
-            <button class="like-btn" @click="handleLike(item.postId, item.likedByMe)">{{ item.likedByMe ? '♥' : '♡' }} {{ item.courseLikeCount }}</button>
+            <button class="like-btn" @click="handleLike(item.postId, item.likedByMe)">
+              {{ item.likedByMe ? '♥' : '♡' }} {{ item.courseLikeCount }}
+            </button>
             <span class="use-count">장소 하트 {{ item.placeHeartCount }}개</span>
+            <button class="import-btn" :disabled="store.loading" @click="startCourse(item.postId)">
+              현재 데이트로 시작
+            </button>
           </div>
         </BaseCard>
       </div>
@@ -224,6 +331,16 @@ watch(rankTab, (tab) => { void store.loadRankings(tab === 'new' ? 'LATEST' : 'PO
   gap: 10px;
 }
 
+.pull-indicator {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 800;
+  transition: height 0.15s ease;
+}
+
 .rank-card {
   padding: 13px;
 }
@@ -250,14 +367,14 @@ watch(rankTab, (tab) => { void store.loadRankings(tab === 'new' ? 'LATEST' : 'PO
 
 .theme-tag {
   color: #e75d74;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.08em;
 }
 
 .rank-card h3 {
   margin: 0 0 4px;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 800;
 }
 
@@ -265,7 +382,7 @@ watch(rankTab, (tab) => { void store.loadRankings(tab === 'new' ? 'LATEST' : 'PO
   display: flex;
   justify-content: space-between;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .comment {
@@ -274,7 +391,7 @@ watch(rankTab, (tab) => { void store.loadRankings(tab === 'new' ? 'LATEST' : 'PO
   border-radius: 11px;
   background: #fff5f7;
   color: #6f5b5f;
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1.5;
 }
 
@@ -294,7 +411,7 @@ watch(rankTab, (tab) => { void store.loadRankings(tab === 'new' ? 'LATEST' : 'PO
   padding: 6px 8px;
   border-radius: 9px;
   background: #f3efed;
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 700;
 }
 
@@ -305,10 +422,27 @@ watch(rankTab, (tab) => { void store.loadRankings(tab === 'new' ? 'LATEST' : 'PO
   margin-top: 10px;
 }
 
+.route-btn {
+  width: 100%;
+  margin-top: 10px;
+  padding: 9px;
+  border-radius: 10px;
+  background: #f3efed;
+  color: #66575a;
+  font-size: 11px;
+  font-weight: 800;
+}
+.route-preview {
+  height: 180px;
+  margin-top: 8px;
+  overflow: hidden;
+  border-radius: 13px;
+}
+
 .actions button {
   padding: 8px 9px;
   border-radius: 10px;
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 800;
   border: 0;
 }
@@ -319,7 +453,7 @@ watch(rankTab, (tab) => { void store.loadRankings(tab === 'new' ? 'LATEST' : 'PO
 }
 
 .use-count {
-  font-size: 8px;
+  font-size: 9px;
   color: var(--muted);
 }
 

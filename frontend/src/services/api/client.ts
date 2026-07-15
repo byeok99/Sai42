@@ -3,6 +3,20 @@ import type { ApiHeaders, BaseDto, ErrorResponseDto } from '@/types/api/common'
 const DEFAULT_BASE_URL = 'https://sai42-backend.onrender.com/api/v1'
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || DEFAULT_BASE_URL
 
+export class ApiRequestError extends Error {
+  constructor(
+    public readonly code: string,
+    public readonly status: number,
+    public readonly traceId?: string,
+    message = '요청 처리에 실패했습니다.',
+  ) {
+    super(
+      `${message} (오류 코드: ${code} · HTTP ${status}${traceId ? ` · 추적 ID: ${traceId}` : ''})`,
+    )
+    this.name = 'ApiRequestError'
+  }
+}
+
 export class ApiClient {
   constructor(private readonly baseUrl: string = DEFAULT_BASE_URL) {}
 
@@ -51,8 +65,15 @@ export class ApiClient {
       | null
 
     if (!response.ok) {
-      const errorMessage = payload && 'message' in payload ? payload.message : 'Request failed'
-      throw new Error(errorMessage)
+      if (payload && 'code' in payload && 'message' in payload) {
+        throw new ApiRequestError(payload.code, response.status, payload.traceId, payload.message)
+      }
+      throw new ApiRequestError(
+        'NETWORK_REQUEST_FAILED',
+        response.status,
+        undefined,
+        '서버 요청에 실패했습니다.',
+      )
     }
 
     if (!payload || typeof payload !== 'object' || !('success' in payload) || !payload.success) {

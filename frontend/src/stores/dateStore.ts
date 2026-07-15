@@ -7,11 +7,11 @@ import { historyService } from '@/services/historyService'
 import { identityService } from '@/services/identityService'
 import { rankingService } from '@/services/rankingService'
 import type { AuthenticatedApiHeaders } from '@/types/api/common'
-import type { CommunityPostSummaryDto } from '@/types/api/community'
+import type { CommunityPostDetailDto, CommunityPostSummaryDto } from '@/types/api/community'
 import type { DateCourseDto, HistoryCourseSummaryDto } from '@/types/api/course'
-import type { CreateChatSessionRequestDto } from '@/types/api/chat'
+import type { CourseEditAction, CreateChatSessionRequestDto } from '@/types/api/chat'
 
-type SurveyKey = 'pref' | 'mood' | 'move'
+type SurveyKey = 'pref' | 'mood' | 'density' | 'move'
 
 const activityByOption: Record<string, CreateChatSessionRequestDto['activities'][number]> = {
   '☕ 감성 카페': 'FOOD',
@@ -35,14 +35,32 @@ const transportationByOption: Record<string, CreateChatSessionRequestDto['transp
   '🚗 자가용': 'CAR',
   '🎲 그날그날 달라요': 'FLEXIBLE',
 }
+const densityByOption: Record<string, CreateChatSessionRequestDto['scheduleDensity']> = {
+  '여유롭게 오래': 'RELAXED',
+  '적당히 알차게': 'NORMAL',
+  '짧고 촘촘하게': 'TIGHT',
+}
 
-function todaySeoul() {
-  return new Intl.DateTimeFormat('en-CA', {
+function defaultCourseSchedule() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Seoul',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-  }).format(new Date())
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(new Date())
+  const value = (type: string) => parts.find((part) => part.type === type)?.value ?? ''
+  const minutes = Number(value('hour')) * 60 + Number(value('minute'))
+  const date = new Date(
+    Date.UTC(
+      Number(value('year')),
+      Number(value('month')) - 1,
+      Number(value('day')) + (minutes >= 19 * 60 ? 1 : 0),
+    ),
+  )
+  return { date: date.toISOString().slice(0, 10), startTime: '19:00' }
 }
 
 export const useDateStore = defineStore('dateStore', () => {
@@ -52,7 +70,18 @@ export const useDateStore = defineStore('dateStore', () => {
   const password = ref<string | null>(null)
   const surveyDone = ref(false)
   const surveyStep = ref(0)
-  const surveyAnswers = ref<Record<SurveyKey, string[]>>({ pref: [], mood: [], move: [] })
+  const surveyAnswers = ref<Record<SurveyKey, string[]>>({
+    pref: [],
+    mood: [],
+    density: [],
+    move: [],
+  })
+  const defaultSchedule = defaultCourseSchedule()
+  const courseDate = ref(defaultSchedule.date)
+  const startTime = ref(defaultSchedule.startTime)
+  const minimumCourseDate = ref(defaultSchedule.date)
+  const district = ref<CreateChatSessionRequestDto['district']>('YUSEONG_GU')
+  const spaceType = ref<CreateChatSessionRequestDto['spaceType']>('ANY')
   const showSurvey = ref(false)
   const showCommentModal = ref(false)
   const toastMessage = ref('')
@@ -62,23 +91,75 @@ export const useDateStore = defineStore('dateStore', () => {
   const draftId = ref<string | null>(null)
   const draftVersion = ref<number | null>(null)
   const course = ref<{ title: string; places: string[]; coords: [number, number][] }>({
-    title: '', places: [], coords: [],
+    title: '',
+    places: [],
+    coords: [],
   })
   const messages = ref<Array<{ role: 'bot' | 'user'; content: string }>>([])
   const activeCourse = ref<DateCourseDto | null>(null)
   const rankings = ref<CommunityPostSummaryDto[]>([])
+  const selectedCommunityCourse = ref<CommunityPostDetailDto | null>(null)
   const history = ref<HistoryCourseSummaryDto[]>([])
 
-  const surveyStepsList: Array<{ emoji: string; title: string; desc: string; key: SurveyKey; opts: string[]; single?: boolean }> = [
-    { emoji: '🎨', title: '내가 선호하는 데이트는?', desc: '여러 개 골라도 괜찮아요.', key: 'pref', opts: Object.keys(activityByOption) },
-    { emoji: '💭', title: '평소 좋아하는 분위기는?', desc: '둘 사이의 공통점을 찾아볼게요.', key: 'mood', opts: Object.keys(moodByOption) },
-    { emoji: '🚌', title: '주로 어떻게 이동하나요?', desc: '장소 사이의 거리를 조절해요.', key: 'move', single: true, opts: Object.keys(transportationByOption) },
+  const surveyStepsList: Array<{
+    emoji: string
+    title: string
+    desc: string
+    key?: SurveyKey
+    opts?: string[]
+    single?: boolean
+    kind?: 'datetime' | 'location'
+  }> = [
+    {
+      emoji: '📅',
+      title: '언제, 어디서 만날까요?',
+      desc: '코스 시간과 출발 지역을 먼저 정해요.',
+      kind: 'datetime',
+    },
+    {
+      emoji: '📍',
+      title: '데이트 지역과 공간',
+      desc: '이동 동선과 날씨를 반영할게요.',
+      kind: 'location',
+    },
+    {
+      emoji: '🎨',
+      title: '선호하는 데이트는?',
+      desc: '여러 개 골라도 괜찮아요.',
+      key: 'pref',
+      opts: Object.keys(activityByOption),
+    },
+    {
+      emoji: '💭',
+      title: '좋아하는 분위기는?',
+      desc: '둘 사이의 공통점을 찾아볼게요.',
+      key: 'mood',
+      opts: Object.keys(moodByOption),
+    },
+    {
+      emoji: '⏱️',
+      title: '오늘 일정의 밀도는?',
+      desc: '코스 간 이동과 머무는 시간을 조절해요.',
+      key: 'density',
+      single: true,
+      opts: Object.keys(densityByOption),
+    },
+    {
+      emoji: '🚌',
+      title: '주로 어떻게 이동하나요?',
+      desc: '장소 사이의 거리를 조절해요.',
+      key: 'move',
+      single: true,
+      opts: Object.keys(transportationByOption),
+    },
   ]
 
   function triggerToast(message: string) {
     toastMessage.value = message
     toastVisible.value = true
-    window.setTimeout(() => { toastVisible.value = false }, 2200)
+    window.setTimeout(() => {
+      toastVisible.value = false
+    }, 2200)
   }
 
   function authHeaders(): AuthenticatedApiHeaders {
@@ -86,13 +167,22 @@ export const useDateStore = defineStore('dateStore', () => {
     return { 'X-Profile-Id': profileId.value, 'X-User-Password': password.value }
   }
 
-  function applyDraft(draft: { draftId: string; version: number; title: string; places: Array<{ place: { name: string; latitude: number | null; longitude: number | null } }> }) {
+  function applyDraft(draft: {
+    draftId: string
+    version: number
+    title: string
+    places: Array<{ place: { name: string; latitude: number | null; longitude: number | null } }>
+  }) {
     draftId.value = draft.draftId
     draftVersion.value = draft.version
     course.value = {
       title: draft.title,
       places: draft.places.map((item) => item.place.name),
-      coords: draft.places.flatMap((item) => item.place.latitude !== null && item.place.longitude !== null ? [[item.place.latitude, item.place.longitude] as [number, number]] : []),
+      coords: draft.places.flatMap((item) =>
+        item.place.latitude !== null && item.place.longitude !== null
+          ? [[item.place.latitude, item.place.longitude] as [number, number]]
+          : [],
+      ),
     }
   }
 
@@ -104,8 +194,14 @@ export const useDateStore = defineStore('dateStore', () => {
     loading.value = true
     try {
       const response = register
-        ? await identityService.createProfile({ nickname: nickname.trim(), password: inputPassword })
-        : await identityService.verifyProfile({ nickname: nickname.trim(), password: inputPassword })
+        ? await identityService.createProfile({
+            nickname: nickname.trim(),
+            password: inputPassword,
+          })
+        : await identityService.verifyProfile({
+            nickname: nickname.trim(),
+            password: inputPassword,
+          })
       if (!response.data) throw new Error('프로필 정보를 받지 못했습니다.')
       profileId.value = response.data.profileId
       password.value = inputPassword
@@ -116,89 +212,355 @@ export const useDateStore = defineStore('dateStore', () => {
     } catch (error) {
       triggerToast(error instanceof Error ? error.message : '인증에 실패했습니다.')
       return false
-    } finally { loading.value = false }
+    } finally {
+      loading.value = false
+    }
   }
 
-  const register = (nickname: string, inputPassword: string) => authenticate(nickname, inputPassword, true)
-  const login = (nickname: string, inputPassword: string) => authenticate(nickname, inputPassword, false)
+  const register = (nickname: string, inputPassword: string) =>
+    authenticate(nickname, inputPassword, true)
+  const login = (nickname: string, inputPassword: string) =>
+    authenticate(nickname, inputPassword, false)
 
   function toggleSurveyOption(key: SurveyKey, option: string) {
     const step = surveyStepsList[surveyStep.value]!
     if (step.single) surveyAnswers.value[key] = [option]
-    else surveyAnswers.value[key] = surveyAnswers.value[key].includes(option)
-      ? surveyAnswers.value[key].filter((item) => item !== option)
-      : [...surveyAnswers.value[key], option]
+    else
+      surveyAnswers.value[key] = surveyAnswers.value[key].includes(option)
+        ? surveyAnswers.value[key].filter((item) => item !== option)
+        : [...surveyAnswers.value[key], option]
   }
 
   async function createChatSession() {
-    const activities = [...new Set(surveyAnswers.value.pref.map((value) => activityByOption[value]).filter((value): value is NonNullable<typeof value> => value !== undefined))]
-    const moods = [...new Set(surveyAnswers.value.mood.map((value) => moodByOption[value]).filter((value): value is NonNullable<typeof value> => value !== undefined))]
+    const activities = [
+      ...new Set(
+        surveyAnswers.value.pref
+          .map((value) => activityByOption[value])
+          .filter((value): value is NonNullable<typeof value> => value !== undefined),
+      ),
+    ]
+    const moods = [
+      ...new Set(
+        surveyAnswers.value.mood
+          .map((value) => moodByOption[value])
+          .filter((value): value is NonNullable<typeof value> => value !== undefined),
+      ),
+    ]
     const transportation = transportationByOption[surveyAnswers.value.move[0] ?? '']
-    if (!activities.length || !moods.length || !transportation) throw new Error('설문 항목을 모두 선택해 주세요.')
-    const response = await chatService.createSession({
-      date: todaySeoul(), timeSlot: 'AFTERNOON', startTime: '14:00', district: 'YUSEONG_GU',
-      spaceType: 'ANY', moods, activities, scheduleDensity: 'NORMAL', transportation,
-    }, authHeaders())
+    const scheduleDensity = densityByOption[surveyAnswers.value.density[0] ?? '']
+    if (!activities.length || !moods.length || !transportation || !scheduleDensity)
+      throw new Error('설문 항목을 모두 선택해 주세요.')
+    const response = await chatService.createSession(
+      {
+        date: courseDate.value,
+        timeSlot: 'AFTERNOON',
+        startTime: startTime.value,
+        district: district.value,
+        spaceType: spaceType.value,
+        moods,
+        activities,
+        scheduleDensity,
+        transportation,
+      },
+      authHeaders(),
+    )
     sessionId.value = response.data.id
     messages.value = [{ role: 'bot', content: response.data.assistantMessage.content }]
     applyDraft(response.data.draft)
   }
 
   async function nextSurveyStep() {
-    const key = surveyStepsList[surveyStep.value]!.key
-    if (!surveyAnswers.value[key].length) return triggerToast('하나 이상 선택해 주세요.')
-    if (surveyStep.value < surveyStepsList.length - 1) { surveyStep.value += 1; return }
+    const step = surveyStepsList[surveyStep.value]!
+    if (step.kind === 'datetime' && (!courseDate.value || !startTime.value))
+      return triggerToast('날짜와 시작 시각을 선택해 주세요.')
+    if (step.key && !surveyAnswers.value[step.key].length)
+      return triggerToast('하나 이상 선택해 주세요.')
+    if (surveyStep.value < surveyStepsList.length - 1) {
+      surveyStep.value += 1
+      return
+    }
     loading.value = true
     try {
       await createChatSession()
       surveyDone.value = true
       showSurvey.value = false
       triggerToast('취향을 반영한 첫 코스를 만들었어요.')
-    } catch (error) { triggerToast(error instanceof Error ? error.message : '코스 생성에 실패했습니다.') }
-    finally { loading.value = false }
+    } catch (error) {
+      triggerToast(error instanceof Error ? error.message : '코스 생성에 실패했습니다.')
+    } finally {
+      loading.value = false
+    }
   }
-  function prevSurveyStep() { if (surveyStep.value > 0) surveyStep.value -= 1 }
+  function prevSurveyStep() {
+    if (surveyStep.value > 0) surveyStep.value -= 1
+  }
+
+  function startNewCourseSetup() {
+    surveyStep.value = 0
+    surveyDone.value = false
+    surveyAnswers.value = { pref: [], mood: [], density: [], move: [] }
+    sessionId.value = null
+    draftId.value = null
+    draftVersion.value = null
+    course.value = { title: '', places: [], coords: [] }
+    messages.value = []
+    showSurvey.value = true
+  }
 
   async function sendChatMessage(message: string) {
-    if (!message.trim() || !sessionId.value || !draftVersion.value) return
+    if (!message.trim()) return
+    if (!sessionId.value || !draftVersion.value) {
+      triggerToast('먼저 성향 조사를 완료하고 AI 코스를 만들어 주세요.')
+      return
+    }
     loading.value = true
     try {
-      const response = await chatService.sendMessage(sessionId.value, { message, expectedDraftVersion: draftVersion.value }, authHeaders())
-      messages.value.push({ role: 'user', content: response.data.userMessage.content }, { role: 'bot', content: response.data.assistantMessage.content })
+      const response = await chatService.sendMessage(
+        sessionId.value,
+        { message, expectedDraftVersion: draftVersion.value },
+        authHeaders(),
+      )
+      messages.value.push(
+        { role: 'user', content: response.data.userMessage.content },
+        { role: 'bot', content: response.data.assistantMessage.content },
+      )
       applyDraft(response.data.draft)
-    } catch (error) { triggerToast(error instanceof Error ? error.message : '메시지 전송에 실패했습니다.') }
-    finally { loading.value = false }
+    } catch (error) {
+      triggerToast(error instanceof Error ? error.message : '메시지 전송에 실패했습니다.')
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function sendQuickAction(quickAction: CourseEditAction) {
+    if (!sessionId.value || !draftVersion.value) {
+      triggerToast('먼저 성향 조사를 완료하고 AI 코스를 만들어 주세요.')
+      return
+    }
+    loading.value = true
+    try {
+      const response = await chatService.sendMessage(
+        sessionId.value,
+        { quickAction, expectedDraftVersion: draftVersion.value },
+        authHeaders(),
+      )
+      messages.value.push(
+        { role: 'user', content: response.data.userMessage.content },
+        { role: 'bot', content: response.data.assistantMessage.content },
+      )
+      applyDraft(response.data.draft)
+      if (!response.data.changed)
+        triggerToast(response.data.warnings[0] ?? '현재 코스를 유지했어요.')
+    } catch (error) {
+      triggerToast(error instanceof Error ? error.message : '코스 수정에 실패했습니다.')
+    } finally {
+      loading.value = false
+    }
   }
 
   async function decideCourse() {
     if (!sessionId.value || !draftId.value || !draftVersion.value) return
     loading.value = true
     try {
-      const response = await chatService.confirmSession(sessionId.value, { draftId: draftId.value, expectedVersion: draftVersion.value }, authHeaders())
+      const response = await chatService.confirmSession(
+        sessionId.value,
+        { draftId: draftId.value, expectedVersion: draftVersion.value },
+        authHeaders(),
+      )
       activeCourse.value = response.data
       triggerToast('오늘의 데이트 코스로 등록했어요 💗')
       return true
-    } catch (error) { triggerToast(error instanceof Error ? error.message : '코스 확정에 실패했습니다.'); return false }
-    finally { loading.value = false }
+    } catch (error) {
+      triggerToast(error instanceof Error ? error.message : '코스 확정에 실패했습니다.')
+      return false
+    } finally {
+      loading.value = false
+    }
   }
 
   async function loadCurrentCourse() {
-    try { activeCourse.value = (await courseService.getCurrentCourse(authHeaders())).data } catch (error) { if (error instanceof Error && !error.message.includes('다시 로그인')) triggerToast(error.message) }
+    try {
+      activeCourse.value = (await courseService.getCurrentCourse(authHeaders())).data
+    } catch (error) {
+      if (error instanceof Error && !error.message.includes('다시 로그인'))
+        triggerToast(error.message)
+    }
   }
   async function togglePlaceLike(coursePlaceId: string, hearted: boolean) {
     try {
-      const response = hearted ? await courseService.unheartCoursePlace(coursePlaceId, authHeaders()) : await courseService.heartCoursePlace(coursePlaceId, authHeaders())
-      if (activeCourse.value && response.data) activeCourse.value.places = activeCourse.value.places.map((place) => place.coursePlaceId === coursePlaceId ? { ...place, heartedByMe: response.data!.heartedByMe, heartCount: response.data!.heartCount } : place)
-    } catch (error) { triggerToast(error instanceof Error ? error.message : '좋아요 처리에 실패했습니다.') }
+      const response = hearted
+        ? await courseService.unheartCoursePlace(coursePlaceId, authHeaders())
+        : await courseService.heartCoursePlace(coursePlaceId, authHeaders())
+      if (activeCourse.value && response.data)
+        activeCourse.value.places = activeCourse.value.places.map((place) =>
+          place.coursePlaceId === coursePlaceId
+            ? {
+                ...place,
+                heartedByMe: response.data!.heartedByMe,
+                heartCount: response.data!.heartCount,
+              }
+            : place,
+        )
+    } catch (error) {
+      triggerToast(error instanceof Error ? error.message : '좋아요 처리에 실패했습니다.')
+    }
   }
-  async function nextPlace(coursePlaceId: string) { try { await courseService.completeCoursePlace(coursePlaceId, authHeaders()); await loadCurrentCourse() } catch (error) { triggerToast(error instanceof Error ? error.message : '장소 완료 처리에 실패했습니다.') } }
+  async function nextPlace(coursePlaceId: string) {
+    try {
+      await courseService.completeCoursePlace(coursePlaceId, authHeaders())
+      await loadCurrentCourse()
+    } catch (error) {
+      triggerToast(error instanceof Error ? error.message : '장소 완료 처리에 실패했습니다.')
+    }
+  }
   async function submitReview(oneLineComment: string) {
-    try { await courseService.completeCurrentCourse({ oneLineComment }, authHeaders()); activeCourse.value = null; showCommentModal.value = false; triggerToast('데이트가 추억으로 저장됐어요 💌') } catch (error) { triggerToast(error instanceof Error ? error.message : '데이트 종료에 실패했습니다.') }
+    try {
+      await courseService.completeCurrentCourse({ oneLineComment }, authHeaders())
+      activeCourse.value = null
+      showCommentModal.value = false
+      triggerToast('데이트가 추억으로 저장됐어요 💌')
+    } catch (error) {
+      triggerToast(error instanceof Error ? error.message : '데이트 종료에 실패했습니다.')
+    }
   }
-  async function loadRankings(sort: 'POPULAR' | 'LATEST' = 'POPULAR') { try { rankings.value = (await communityService.listPosts({ sort })).data ?? [] } catch (error) { triggerToast(error instanceof Error ? error.message : '랭킹을 불러오지 못했습니다.') } }
-  async function likeRankItem(postId: string, liked: boolean) { try { const result = liked ? await communityService.unlikePost(postId, authHeaders()) : await communityService.likePost(postId, authHeaders()); if (result.data) rankings.value = rankings.value.map((item) => item.postId === postId ? { ...item, likedByMe: result.data!.likedByMe, courseLikeCount: result.data!.likeCount } : item) } catch (error) { triggerToast(error instanceof Error ? error.message : '좋아요 처리에 실패했습니다.') } }
-  async function loadHistory() { try { history.value = (await historyService.listMyDateCourses(authHeaders())).data ?? [] } catch (error) { if (error instanceof Error && !error.message.includes('다시 로그인')) triggerToast(error.message) } }
-  async function loadMasters() { return rankingService.getMasters() }
+  async function loadRankings(sort: 'POPULAR' | 'LATEST' = 'POPULAR') {
+    try {
+      rankings.value = (await communityService.listPosts({ sort })).data ?? []
+    } catch (error) {
+      triggerToast(error instanceof Error ? error.message : '랭킹을 불러오지 못했습니다.')
+    }
+  }
+  async function likeRankItem(postId: string, liked: boolean) {
+    try {
+      const result = liked
+        ? await communityService.unlikePost(postId, authHeaders())
+        : await communityService.likePost(postId, authHeaders())
+      if (result.data)
+        rankings.value = rankings.value.map((item) =>
+          item.postId === postId
+            ? {
+                ...item,
+                likedByMe: result.data!.likedByMe,
+                courseLikeCount: result.data!.likeCount,
+              }
+            : item,
+        )
+    } catch (error) {
+      triggerToast(error instanceof Error ? error.message : '좋아요 처리에 실패했습니다.')
+    }
+  }
+  async function updateCommunityPost(postId: string, oneLineComment: string) {
+    if (!oneLineComment.trim()) return false
+    try {
+      await communityService.updatePost(
+        postId,
+        { oneLineComment: oneLineComment.trim() },
+        authHeaders(),
+      )
+      rankings.value = rankings.value.map((item) =>
+        item.postId === postId ? { ...item, oneLineComment: oneLineComment.trim() } : item,
+      )
+      triggerToast('한 줄 코멘트를 수정했어요.')
+      return true
+    } catch (error) {
+      triggerToast(error instanceof Error ? error.message : '게시글 수정에 실패했습니다.')
+      return false
+    }
+  }
+  async function deleteCommunityPost(postId: string) {
+    try {
+      await communityService.deletePost(postId, authHeaders())
+      rankings.value = rankings.value.filter((item) => item.postId !== postId)
+      triggerToast('랭킹보드에서 게시글을 삭제했어요.')
+      return true
+    } catch (error) {
+      triggerToast(error instanceof Error ? error.message : '게시글 삭제에 실패했습니다.')
+      return false
+    }
+  }
+  async function startCommunityCourse(postId: string) {
+    loading.value = true
+    try {
+      const response = await communityService.startPost(
+        postId,
+        { date: courseDate.value, startTime: startTime.value },
+        authHeaders(),
+      )
+      if (!response.data) throw new Error('시작한 코스 정보를 받지 못했습니다.')
+      activeCourse.value = response.data.activeCourse
+      triggerToast('선택한 코스를 현재 데이트로 시작했어요.')
+      return true
+    } catch (error) {
+      triggerToast(error instanceof Error ? error.message : '코스 시작에 실패했습니다.')
+      return false
+    } finally {
+      loading.value = false
+    }
+  }
+  async function loadCommunityCourse(postId: string) {
+    try {
+      selectedCommunityCourse.value = (await communityService.getPost(postId)).data
+    } catch (error) {
+      triggerToast(error instanceof Error ? error.message : '코스 경로를 불러오지 못했습니다.')
+    }
+  }
+  async function loadHistory() {
+    try {
+      history.value = (await historyService.listMyDateCourses(authHeaders())).data ?? []
+    } catch (error) {
+      if (error instanceof Error && !error.message.includes('다시 로그인'))
+        triggerToast(error.message)
+    }
+  }
+  async function loadMasters() {
+    return rankingService.getMasters()
+  }
 
-  return { authMode, name, profileId, surveyDone, surveyStep, surveyAnswers, surveyStepsList, showSurvey, showCommentModal, toastMessage, toastVisible, loading, course, messages, activeCourse, rankings, history, register, login, toggleSurveyOption, nextSurveyStep, prevSurveyStep, sendChatMessage, decideCourse, loadCurrentCourse, togglePlaceLike, nextPlace, submitReview, loadRankings, likeRankItem, loadHistory, loadMasters, triggerToast }
+  return {
+    authMode,
+    name,
+    profileId,
+    surveyDone,
+    surveyStep,
+    surveyAnswers,
+    surveyStepsList,
+    courseDate,
+    startTime,
+    minimumCourseDate,
+    district,
+    spaceType,
+    showSurvey,
+    showCommentModal,
+    toastMessage,
+    toastVisible,
+    loading,
+    course,
+    messages,
+    activeCourse,
+    rankings,
+    selectedCommunityCourse,
+    history,
+    register,
+    login,
+    toggleSurveyOption,
+    nextSurveyStep,
+    prevSurveyStep,
+    startNewCourseSetup,
+    sendChatMessage,
+    sendQuickAction,
+    decideCourse,
+    loadCurrentCourse,
+    togglePlaceLike,
+    nextPlace,
+    submitReview,
+    loadRankings,
+    likeRankItem,
+    updateCommunityPost,
+    deleteCommunityPost,
+    startCommunityCourse,
+    loadCommunityCourse,
+    loadHistory,
+    loadMasters,
+    triggerToast,
+  }
 })

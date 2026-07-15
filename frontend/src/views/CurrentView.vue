@@ -28,10 +28,13 @@ function endDating() {
 }
 
 function navigateToChat() {
+  store.startNewCourseSetup()
   router.push({ name: 'chat' })
 }
 
-onMounted(() => { void store.loadCurrentCourse() })
+onMounted(() => {
+  void store.loadCurrentCourse()
+})
 </script>
 
 <template>
@@ -61,7 +64,8 @@ onMounted(() => { void store.loadCurrentCourse() })
           <p class="desc">오늘의 날씨와 두 분의 취향을 반영했어요.</p>
           <div class="progress-meta">
             <span
-              >{{ store.activeCourse.progress.completedPlaceCount }} / {{ store.activeCourse.progress.totalPlaceCount }} 장소</span
+              >{{ store.activeCourse.progress.completedPlaceCount }} /
+              {{ store.activeCourse.progress.totalPlaceCount }} 장소</span
             >
             <span>{{ progressPct }}%</span>
           </div>
@@ -74,7 +78,13 @@ onMounted(() => { void store.loadCurrentCourse() })
         <BaseCard class="minimap-wrapper">
           <LeafletMap
             v-if="store.activeCourse"
-            :coords="store.activeCourse.places.flatMap((place) => place.place.latitude !== null && place.place.longitude !== null ? [[place.place.latitude, place.place.longitude]] : [])"
+            :coords="
+              store.activeCourse.places.flatMap((place) =>
+                place.place.latitude !== null && place.place.longitude !== null
+                  ? [[place.place.latitude, place.place.longitude]]
+                  : [],
+              )
+            "
             :places="store.activeCourse.places.map((place) => place.place.name)"
             static
           />
@@ -108,11 +118,17 @@ onMounted(() => { void store.loadCurrentCourse() })
               </p>
             </div>
             <div class="place-actions">
-              <button class="like-toggle" @click="handleLikePlace(place.coursePlaceId, place.heartedByMe)">
+              <button
+                class="like-toggle"
+                @click="handleLikePlace(place.coursePlaceId, place.heartedByMe)"
+              >
                 {{ place.heartedByMe ? '♥ 좋아요' : '♡ 좋아요' }}
               </button>
               <button
-                v-if="place.order === store.activeCourse.progress.currentOrderNo && !store.activeCourse.progress.allPlacesCompleted"
+                v-if="
+                  place.order === store.activeCourse.progress.currentOrderNo &&
+                  !store.activeCourse.progress.allPlacesCompleted
+                "
                 class="next-step-btn"
                 @click="handleNext(place.coursePlaceId)"
               >
@@ -142,7 +158,13 @@ onMounted(() => { void store.loadCurrentCourse() })
         <div class="modal-map-container" style="margin-bottom: 0">
           <LeafletMap
             v-if="store.activeCourse"
-            :coords="store.activeCourse.places.flatMap((place) => place.place.latitude !== null && place.place.longitude !== null ? [[place.place.latitude, place.place.longitude]] : [])"
+            :coords="
+              store.activeCourse.places.flatMap((place) =>
+                place.place.latitude !== null && place.place.longitude !== null
+                  ? [[place.place.latitude, place.place.longitude]]
+                  : [],
+              )
+            "
             :places="store.activeCourse.places.map((place) => place.place.name)"
           />
         </div>

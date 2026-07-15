@@ -1,9 +1,13 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onActivated, onMounted, ref } from 'vue'
 import { useDateStore } from '@/stores/dateStore'
 import BaseCard from '@/components/common/BaseCard.vue'
 
 const store = useDateStore()
+const scrollArea = ref<HTMLElement | null>(null)
+const pullDistance = ref(0)
+const pullStartY = ref<number | null>(null)
+const refreshing = ref(false)
 
 const averageRating = computed(() => {
   if (store.history.length === 0) return '0'
@@ -14,11 +18,65 @@ const totalPlacesVisited = computed(() => {
   return store.history.reduce((acc, curr) => acc + curr.totalPlaceCount, 0)
 })
 
+const postsByCourseId = computed(
+  () =>
+    new Map(
+      store.rankings
+        .filter((post) => post.authorNickname === store.name)
+        .map((post) => [post.courseId, post]),
+    ),
+)
+
 function showInfo() {
   store.triggerToast('완료한 데이트 코스를 불러왔어요.')
 }
 
-onMounted(() => { void store.loadHistory() })
+async function refreshHistory() {
+  if (refreshing.value) return
+  refreshing.value = true
+  await Promise.all([store.loadHistory(), store.loadRankings()])
+  refreshing.value = false
+}
+
+function startPull(event: TouchEvent) {
+  if (scrollArea.value?.scrollTop === 0) pullStartY.value = event.touches[0]?.clientY ?? null
+}
+
+function movePull(event: TouchEvent) {
+  if (pullStartY.value === null) return
+  pullDistance.value = Math.min(
+    78,
+    Math.max(0, (event.touches[0]?.clientY ?? pullStartY.value) - pullStartY.value),
+  )
+}
+
+function endPull() {
+  const shouldRefresh = pullDistance.value >= 58
+  pullStartY.value = null
+  pullDistance.value = 0
+  if (shouldRefresh) void refreshHistory()
+}
+
+onMounted(() => {
+  void refreshHistory()
+})
+onActivated(() => {
+  void refreshHistory()
+})
+
+async function editPost(courseId: string, currentComment: string) {
+  const post = postsByCourseId.value.get(courseId)
+  if (!post) return
+  const nextComment = prompt('수정할 한 줄 코멘트를 입력해 주세요.', currentComment)
+  if (nextComment !== null) await store.updateCommunityPost(post.postId, nextComment)
+}
+
+async function deletePost(courseId: string) {
+  const post = postsByCourseId.value.get(courseId)
+  if (post && confirm('랭킹보드에서 이 게시글을 삭제할까요?')) {
+    await store.deleteCommunityPost(post.postId)
+  }
+}
 </script>
 
 <template>
@@ -31,7 +89,20 @@ onMounted(() => { void store.loadHistory() })
       <button class="info-btn" @click="showInfo">⌁</button>
     </header>
 
-    <div class="scroll-area">
+    <div
+      ref="scrollArea"
+      class="scroll-area"
+      @touchstart="startPull"
+      @touchmove="movePull"
+      @touchend="endPull"
+    >
+      <div
+        class="pull-indicator"
+        :class="{ visible: pullDistance > 0 || refreshing }"
+        :style="{ height: `${refreshing ? 38 : pullDistance}px` }"
+      >
+        {{ refreshing ? '추억을 새로 불러오는 중…' : '놓으면 새로고침' }}
+      </div>
       <!-- Stats Summary Card -->
       <BaseCard class="summary-card">
         <div>
@@ -66,6 +137,10 @@ onMounted(() => { void store.loadHistory() })
             </div>
           </div>
           <div class="hcomment">“{{ item.oneLineComment ?? '남긴 코멘트가 없어요.' }}”</div>
+          <div v-if="postsByCourseId.has(item.courseId)" class="post-actions">
+            <button @click="editPost(item.courseId, item.oneLineComment ?? '')">게시글 수정</button>
+            <button class="delete" @click="deletePost(item.courseId)">게시글 삭제</button>
+          </div>
         </BaseCard>
       </div>
     </div>
@@ -161,6 +236,16 @@ onMounted(() => { void store.loadHistory() })
   gap: 10px;
 }
 
+.pull-indicator {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 800;
+  transition: height 0.15s ease;
+}
+
 .history-card {
   padding: 13px;
 }
@@ -184,21 +269,21 @@ onMounted(() => { void store.loadHistory() })
 .label {
   display: block;
   color: #e75d74;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.08em;
 }
 
 .history-card h3 {
   margin: 2px 0 4px;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 800;
 }
 
 .history-card p {
   margin: 0;
   color: var(--muted);
-  font-size: 8px;
+  font-size: 9px;
 }
 
 .hcomment {
@@ -206,8 +291,30 @@ onMounted(() => { void store.loadHistory() })
   padding: 9px;
   border-radius: 11px;
   background: #f8f3f1;
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1.5;
+}
+
+.post-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.post-actions button {
+  padding: 5px 7px;
+  border: 0;
+  border-radius: 7px;
+  background: #f3eceb;
+  color: #66575a;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.post-actions .delete {
+  background: #ffebeb;
+  color: #c84d61;
 }
 
 .places {

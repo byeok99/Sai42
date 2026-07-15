@@ -6,11 +6,11 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.common.dependencies import validate_optional_request_id
-from app.common.exception_handlers import register_exception_handlers
-from app.common.middleware import TraceIdMiddleware
-from app.common.responses import DEFAULT_ERROR_RESPONSES
-from app.common.router import router as common_router
+from app.common.presentation.dependencies import validate_optional_request_id
+from app.common.presentation.exception_handlers import register_exception_handlers
+from app.common.presentation.middleware import TraceIdMiddleware
+from app.common.presentation.responses import DEFAULT_ERROR_RESPONSES
+from app.common.presentation.router import router as common_router
 from app.config import Settings, get_settings
 from app.database import dispose_database_engine
 

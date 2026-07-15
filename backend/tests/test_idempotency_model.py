@@ -9,7 +9,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.common.models import IdempotencyRecord
+from app.common.infrastructure.models import IdempotencyRecord
 from app.database import Base
 
 

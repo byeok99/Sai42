@@ -28,7 +28,7 @@ class CommonApiTest(unittest.IsolatedAsyncioTestCase):
         return httpx.AsyncClient(transport=transport, base_url="http://testserver")
 
     async def test_health_and_options_follow_the_common_contract(self) -> None:
-        app = create_app(Settings())
+        app = create_app(Settings(openai_api_key=None))
         request_id = str(uuid4())
 
         async with await self._client(app) as client:
@@ -50,7 +50,7 @@ class CommonApiTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(health_response.headers["X-Request-Id"], request_id)
         self.assertEqual(health["data"]["database"], "UP")
         self.assertEqual(health["data"]["aiProvider"], "NOT_CONFIGURED")
-        self.assertEqual(health["data"]["weatherProvider"], "NOT_CONFIGURED")
+        self.assertEqual(health["data"]["weatherProvider"], "UP")
         self.assertEqual(health["timestamp"][-6:], "+09:00")
 
         self.assertEqual(options_response.status_code, 200)
@@ -88,10 +88,23 @@ class CommonApiTest(unittest.IsolatedAsyncioTestCase):
                 "/api/v1/places",
                 "/api/v1/places/{contentId}",
                 "/api/v1/places/{contentId}/nearby",
+                "/api/v1/chat/sessions",
+                "/api/v1/chat/sessions/{sessionId}",
+                "/api/v1/chat/sessions/{sessionId}/messages",
+                "/api/v1/chat/sessions/{sessionId}/confirm",
                 "/api/v1/date-courses/current",
                 "/api/v1/date-courses/current/places/{coursePlaceId}/complete",
                 "/api/v1/date-courses/current/places/{coursePlaceId}/heart",
                 "/api/v1/date-courses/current/complete",
+                "/api/v1/weather",
+                "/api/v1/community/posts",
+                "/api/v1/community/posts/{postId}",
+                "/api/v1/community/posts/{postId}/like",
+                "/api/v1/community/posts/{postId}/start",
+                "/api/v1/rankings/masters",
+                "/api/v1/profiles/me/date-courses",
+                "/api/v1/profiles/me/date-courses/{courseId}",
+                "/api/v1/profiles/me/date-courses/{courseId}/restart",
             },
         )
         schemas = schema["components"]["schemas"]

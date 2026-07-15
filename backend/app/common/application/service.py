@@ -28,7 +28,7 @@ class CommonService:
         self.settings = settings
 
     async def get_health(self) -> HealthDto:
-        """Report service health while keeping unimplemented providers explicit."""
+        """Report service health and configured external providers."""
         if not await self.repository.database_is_available():
             raise BusinessException(
                 status_code=500,
@@ -38,8 +38,13 @@ class CommonService:
         return HealthDto(
             status="UP",
             database="UP",
-            ai_provider="NOT_CONFIGURED",
-            weather_provider="NOT_CONFIGURED",
+            ai_provider=(
+                "UP"
+                if self.settings.openai_api_key
+                and self.settings.openai_api_key.get_secret_value().strip()
+                else "NOT_CONFIGURED"
+            ),
+            weather_provider="UP",
             version=self.settings.app_version,
         )
 

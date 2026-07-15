@@ -578,6 +578,10 @@ DB에서 아직 분류되지 않은 `district`, `indoorOutdoor`와 존재하지 
 
 외부 API 실패 시 HTTP 200과 `available=false`를 반환한다. `recommendation.preferredSpaceType`은 `ANY`, `indoorRatio`는 null이며 입력한 공간 조건만 반영한다는 메시지를 제공한다.
 
+외부 공급자는 키가 필요 없는 Open-Meteo Forecast API를 사용한다. 현재 날짜부터 글피까지
+조회하며, 시간별 `temperature_2m`, `precipitation_probability`, `weather_code`를 이 API의
+`WeatherSummaryDto`로 정규화한다.
+
 ## 12. Chat / CourseDraft API
 
 ### 12.1 `POST /chat/sessions`
@@ -614,6 +618,9 @@ DB에서 아직 분류되지 않은 `district`, `indoorOutdoor`와 존재하지 
 | `initialMessage` | N | 최대 1000자 |
 
 처리 순서: 활성 코스 확인 → 조건 검증 → 날씨 조회 → 장소 후보 조회 → 후보 점수 계산 → 후보만 AI에 전달 → 제목·전체 멘트·장소별 멘트 생성 → 세션과 초안 저장.
+
+현재 AI 공급자는 OpenAI Responses API와 Pydantic 구조화 출력을 사용한다. 벡터 DB·임베딩·외부
+검색 도구는 사용하지 않으며 모델 응답의 모든 `contentId`를 SQLite 후보 집합과 다시 대조한다.
 
 - 201 `data`: `sessionId`, `status`, `assistantMessage`, `courseDraft`
 - `courseDraft`: `draftId`, `version`, 제목, 날짜, 시간대, 전체 멘트, `estimatedTotalMinutes`, 조건, 태그, 날씨, 장소, 지도

@@ -23,3 +23,13 @@ services:
         value: "10"
       - key: AUTH_RATE_LIMIT_WINDOW_SECONDS
         value: "60"
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-5-mini
+      - key: OPENAI_TIMEOUT_SECONDS
+        value: "30"
+      - key: OPENAI_MAX_RETRIES
+        value: "1"
+      - key: OPENAI_CANDIDATE_LIMIT
+        value: "60"

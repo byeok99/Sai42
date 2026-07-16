@@ -1,6 +1,6 @@
 import { apiClient } from '@/services/api/client'
 import { apiEndpoints } from '@/services/api/endpoints'
-import type { BaseDto } from '@/types/api/common'
+import type { ApiHeaders, BaseDto } from '@/types/api/common'
 import type {
   CommunityPostCreateRequestDto,
   CommunityPostDetailDto,
@@ -11,7 +11,10 @@ import type {
 } from '@/types/api/community'
 
 export interface CommunityRepository {
-  listPosts(params?: { sort?: 'POPULAR' | 'LATEST' }): Promise<BaseDto<CommunityPostSummaryDto[]>>
+  listPosts(
+    params?: { sort?: 'POPULAR' | 'LATEST'; page?: number; size?: number },
+    headers?: ApiHeaders,
+  ): Promise<BaseDto<CommunityPostSummaryDto[]>>
   getPost(postId: string): Promise<BaseDto<CommunityPostDetailDto>>
   createPost(
     payload: CommunityPostCreateRequestDto,
@@ -42,8 +45,14 @@ export interface CommunityRepository {
 }
 
 export class CommunityRepositoryImpl implements CommunityRepository {
-  async listPosts(params?: { sort?: 'POPULAR' | 'LATEST' }) {
-    return apiClient.get<CommunityPostSummaryDto[]>(apiEndpoints.communityPosts, { params })
+  async listPosts(
+    params?: { sort?: 'POPULAR' | 'LATEST'; page?: number; size?: number },
+    headers?: ApiHeaders,
+  ) {
+    return apiClient.get<CommunityPostSummaryDto[]>(apiEndpoints.communityPosts, {
+      params,
+      headers,
+    })
   }
 
   async getPost(postId: string) {

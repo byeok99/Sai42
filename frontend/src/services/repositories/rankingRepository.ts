@@ -4,12 +4,12 @@ import type { BaseDto } from '@/types/api/common'
 import type { DateMastersDto } from '@/types/api/community'
 
 export interface RankingRepository {
-  getMasters(): Promise<BaseDto<DateMastersDto>>
+  getMasters(limit?: number): Promise<BaseDto<DateMastersDto>>
 }
 
 export class RankingRepositoryImpl implements RankingRepository {
-  async getMasters() {
-    return apiClient.get<DateMastersDto>(apiEndpoints.rankingsMasters)
+  async getMasters(limit = 50) {
+    return apiClient.get<DateMastersDto>(apiEndpoints.rankingsMasters, { params: { limit } })
   }
 }
 

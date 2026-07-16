@@ -6,7 +6,7 @@ import { courseService } from '@/services/courseService'
 import { historyService } from '@/services/historyService'
 import { identityService } from '@/services/identityService'
 import { rankingService } from '@/services/rankingService'
-import type { AuthenticatedApiHeaders } from '@/types/api/common'
+import type { AuthenticatedApiHeaders, PageMetaDto } from '@/types/api/common'
 import type {
   CommunityPostDetailDto,
   CommunityPostSummaryDto,
@@ -108,6 +108,7 @@ export const useDateStore = defineStore('dateStore', () => {
   const messages = ref<Array<{ role: 'bot' | 'user'; content: string }>>([])
   const activeCourse = ref<DateCourseDto | null>(null)
   const rankings = ref<CommunityPostSummaryDto[]>([])
+  const rankingMeta = ref<PageMetaDto | null>(null)
   const masters = ref<DateMasterDto[]>([])
   const selectedCommunityCourse = ref<CommunityPostDetailDto | null>(null)
   const history = ref<HistoryCourseSummaryDto[]>([])
@@ -486,28 +487,23 @@ export const useDateStore = defineStore('dateStore', () => {
       triggerToast(error instanceof Error ? error.message : '데이트 종료에 실패했습니다.')
     }
   }
-  async function loadRankings(sort: 'POPULAR' | 'LATEST' = 'POPULAR') {
+  async function loadRankings(page?: number, sort: 'POPULAR' | 'LATEST' = 'POPULAR') {
     try {
-      rankings.value = (await communityService.listPosts({ sort })).data ?? []
+      const headers = profileId.value && password.value ? authHeaders() : undefined
+      const params = page === undefined ? { sort } : { sort, page, size: 5 }
+      const response = await communityService.listPosts(params, headers)
+      rankings.value = response.data ?? []
+      rankingMeta.value = response.meta
     } catch (error) {
       triggerToast(error instanceof Error ? error.message : '랭킹을 불러오지 못했습니다.')
     }
   }
-  async function likeRankItem(postId: string, liked: boolean) {
+  async function likeRankItem(postId: string, liked: boolean, page = 1) {
     try {
-      const result = liked
-        ? await communityService.unlikePost(postId, authHeaders())
-        : await communityService.likePost(postId, authHeaders())
-      if (result.data)
-        rankings.value = rankings.value.map((item) =>
-          item.postId === postId
-            ? {
-                ...item,
-                likedByMe: result.data!.likedByMe,
-                courseLikeCount: result.data!.likeCount,
-              }
-            : item,
-        )
+      await (liked
+        ? communityService.unlikePost(postId, authHeaders())
+        : communityService.likePost(postId, authHeaders()))
+      await loadRankings(page)
     } catch (error) {
       triggerToast(error instanceof Error ? error.message : '좋아요 처리에 실패했습니다.')
     }
@@ -577,7 +573,7 @@ export const useDateStore = defineStore('dateStore', () => {
   }
   async function loadMasters() {
     try {
-      masters.value = (await rankingService.getMasters()).data?.masters ?? []
+      masters.value = (await rankingService.getMasters(50)).data?.masters ?? []
     } catch (error) {
       triggerToast(error instanceof Error ? error.message : '마스터 랭킹을 불러오지 못했습니다.')
     }
@@ -605,6 +601,7 @@ export const useDateStore = defineStore('dateStore', () => {
     messages,
     activeCourse,
     rankings,
+    rankingMeta,
     masters,
     selectedCommunityCourse,
     history,

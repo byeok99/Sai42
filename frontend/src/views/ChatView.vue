@@ -1374,7 +1374,7 @@ watch(hasCourseDraft, (hasDraft) => {
   z-index: 20;
   left: 0;
   right: 0;
-  bottom: 76px;
+  bottom: 0;
   padding: 10px 15px 13px;
   background: linear-gradient(transparent, rgba(255, 250, 245, 0.97) 38%);
 }

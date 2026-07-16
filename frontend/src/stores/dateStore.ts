@@ -612,6 +612,12 @@ export const useDateStore = defineStore('dateStore', () => {
     try {
       await courseService.completeCurrentCourse({ oneLineComment }, authHeaders())
       activeCourse.value = null
+      sessionId.value = null
+      draftId.value = null
+      draftVersion.value = null
+      course.value = { title: '', places: [], coords: [], images: [], weather: null }
+      messages.value = []
+      surveyDone.value = false
       showCommentModal.value = false
       triggerToast('데이트가 추억으로 저장됐어요 💌')
       return true

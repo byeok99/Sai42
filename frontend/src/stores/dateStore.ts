@@ -44,34 +44,25 @@ const densityByOption: Record<string, CreateChatSessionRequestDto['scheduleDensi
   '⚡ 타이트하게': 'TIGHT',
   '☁️ 널널하게': 'RELAXED',
 }
+const timeBySlot: Record<CreateChatSessionRequestDto['timeSlot'], string> = {
+  MORNING: '09:00',
+  AFTERNOON: '14:00',
+  FULL_DAY: '10:00',
+}
 
 function defaultCourseSchedule() {
   return { date: todayInSeoul(), startTime: '10:00' }
 }
 
-function todayInSeoul() {
+function todayInSeoul(referenceDate = new Date()) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Seoul',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-  }).formatToParts(new Date())
+  }).formatToParts(referenceDate)
   const value = (type: string) => parts.find((part) => part.type === type)?.value ?? ''
   return `${value('year')}-${value('month')}-${value('day')}`
-}
-
-function maximumWeatherDate() {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Seoul',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(new Date())
-  const value = (type: string) => parts.find((part) => part.type === type)?.value ?? ''
-  const date = new Date(
-    Date.UTC(Number(value('year')), Number(value('month')) - 1, Number(value('day')) + 3),
-  )
-  return date.toISOString().slice(0, 10)
 }
 
 export const useDateStore = defineStore('dateStore', () => {
@@ -90,10 +81,10 @@ export const useDateStore = defineStore('dateStore', () => {
   const defaultSchedule = defaultCourseSchedule()
   const courseDate = ref(defaultSchedule.date)
   const startTime = ref(defaultSchedule.startTime)
-  const timeSlot = ref<CreateChatSessionRequestDto['timeSlot']>('FULL_DAY')
+  const timeSlot = ref<CreateChatSessionRequestDto['timeSlot'] | null>('FULL_DAY')
+  const serverClockOffsetMs = ref(0)
 
   const minimumCourseDate = ref(defaultSchedule.date)
-  const maximumCourseDate = ref(maximumWeatherDate())
 
   const district = ref<CreateChatSessionRequestDto['district']>('YUSEONG_GU')
   const spaceType = ref<CreateChatSessionRequestDto['spaceType']>('ANY')
@@ -130,6 +121,54 @@ export const useDateStore = defineStore('dateStore', () => {
   const selectedCommunityCourse = ref<CommunityPostDetailDto | null>(null)
   const history = ref<HistoryCourseSummaryDto[]>([])
 
+  function serverNow() {
+    return new Date(Date.now() + serverClockOffsetMs.value)
+  }
+
+  function refreshServerDateBoundaries() {
+    const currentServerTime = serverNow()
+    minimumCourseDate.value = todayInSeoul(currentServerTime)
+  }
+
+  function syncServerClock(timestamp: string) {
+    const serverTimestamp = Date.parse(timestamp)
+    if (Number.isFinite(serverTimestamp)) serverClockOffsetMs.value = serverTimestamp - Date.now()
+    refreshServerDateBoundaries()
+  }
+
+  function isTimeSlotUnavailable(
+    value: CreateChatSessionRequestDto['timeSlot'],
+    date = courseDate.value,
+  ) {
+    if (date < minimumCourseDate.value) return true
+    if (date > minimumCourseDate.value) return false
+    const scheduledAt = Date.parse(`${date}T${timeBySlot[value]}:00+09:00`)
+    return scheduledAt <= serverNow().getTime()
+  }
+
+  function selectCourseDate(value: string) {
+    if (value < minimumCourseDate.value) return false
+    courseDate.value = value
+
+    const candidates: CreateChatSessionRequestDto['timeSlot'][] = [
+      ...(timeSlot.value ? [timeSlot.value] : []),
+      'FULL_DAY',
+      'AFTERNOON',
+      'MORNING',
+    ]
+    const availableSlot = [...new Set(candidates)].find(
+      (candidate) => !isTimeSlotUnavailable(candidate, value),
+    )
+    if (availableSlot) {
+      timeSlot.value = availableSlot
+      startTime.value = timeBySlot[availableSlot]
+    } else {
+      timeSlot.value = null
+      startTime.value = ''
+    }
+    return true
+  }
+
   const surveyStepsList: Array<{
     emoji: string
     title: string
@@ -141,8 +180,8 @@ export const useDateStore = defineStore('dateStore', () => {
   }> = [
     {
       emoji: '📅',
-      title: '오늘 언제 만날까요?',
-      desc: '오늘 일정에 맞는 시간대를 골라 주세요.',
+      title: '언제 만날까요?',
+      desc: '날짜와 서버 시간 이후의 시간대를 골라 주세요.',
       kind: 'datetime',
     },
     {
@@ -255,6 +294,7 @@ export const useDateStore = defineStore('dateStore', () => {
             nickname: nickname.trim(),
             password: inputPassword,
           })
+      syncServerClock(response.timestamp)
       if (!response.data) throw new Error('프로필 정보를 받지 못했습니다.')
       profileId.value = response.data.profileId
       password.value = inputPassword
@@ -288,6 +328,8 @@ export const useDateStore = defineStore('dateStore', () => {
     messages.value = []
     activeCourse.value = null
     authMode.value = 'enter'
+    serverClockOffsetMs.value = 0
+    refreshServerDateBoundaries()
     triggerToast('로그아웃 되었습니다 👋')
   }
 
@@ -316,8 +358,10 @@ export const useDateStore = defineStore('dateStore', () => {
   }
 
   function selectTimeSlot(value: CreateChatSessionRequestDto['timeSlot']) {
+    if (isTimeSlotUnavailable(value)) return false
     timeSlot.value = value
-    startTime.value = value === 'MORNING' ? '09:00' : value === 'AFTERNOON' ? '14:00' : '10:00'
+    startTime.value = timeBySlot[value]
+    return true
   }
 
   async function createChatSession() {
@@ -337,12 +381,28 @@ export const useDateStore = defineStore('dateStore', () => {
     ]
     const transportation = transportationByOption[surveyAnswers.value.move[0] ?? '']
     const scheduleDensity = densityByOption[surveyAnswers.value.density[0] ?? '']
-    if (!activities.length || !moods.length || !transportation || !scheduleDensity)
+    const selectedTimeSlot = timeSlot.value
+    if (
+      !activities.length ||
+      !moods.length ||
+      !transportation ||
+      !scheduleDensity ||
+      !selectedTimeSlot
+    )
       throw new Error('설문 항목을 모두 선택해 주세요.')
+
+    refreshServerDateBoundaries()
+    if (courseDate.value < minimumCourseDate.value || isTimeSlotUnavailable(selectedTimeSlot)) {
+      timeSlot.value = null
+      startTime.value = ''
+      surveyStep.value = 0
+      throw new Error('선택한 시간대가 지났어요. 날짜와 시간대를 다시 선택해 주세요.')
+    }
+
     const response = await chatService.createSession(
       {
         date: courseDate.value,
-        timeSlot: timeSlot.value,
+        timeSlot: selectedTimeSlot,
         startTime: startTime.value,
         district: district.value,
         spaceType: spaceType.value,
@@ -370,10 +430,16 @@ export const useDateStore = defineStore('dateStore', () => {
     const step = surveyStepsList[surveyStep.value]!
 
     if (step.kind === 'datetime') {
-      if (!courseDate.value || !startTime.value)
-        return triggerToast('날짜와 시작 시각을 선택해 주세요.')
-      if (courseDate.value > maximumCourseDate.value)
-        return triggerToast('날씨 정보는 글피까지 선택할 수 있어요.')
+      refreshServerDateBoundaries()
+      if (!courseDate.value || !timeSlot.value || !startTime.value)
+        return triggerToast('날짜와 이용 가능한 시간대를 선택해 주세요.')
+      if (courseDate.value < minimumCourseDate.value)
+        return triggerToast('데이트 날짜는 오늘부터 선택할 수 있어요.')
+      if (isTimeSlotUnavailable(timeSlot.value)) {
+        timeSlot.value = null
+        startTime.value = ''
+        return triggerToast('서버 시간 기준 이미 지난 시간대예요. 다른 시간대를 선택해 주세요.')
+      }
     }
     if (step.key && !surveyAnswers.value[step.key].length)
       return triggerToast('하나 이상 선택해 주세요.')
@@ -401,8 +467,10 @@ export const useDateStore = defineStore('dateStore', () => {
     surveyStep.value = 0
     surveyDone.value = false
     surveyAnswers.value = { pref: [], mood: [], density: [], move: [] }
-    courseDate.value = todayInSeoul()
-    selectTimeSlot('FULL_DAY')
+    refreshServerDateBoundaries()
+    timeSlot.value = 'FULL_DAY'
+    startTime.value = timeBySlot.FULL_DAY
+    selectCourseDate(minimumCourseDate.value)
     sessionId.value = null
     draftId.value = null
     draftVersion.value = null
@@ -681,7 +749,9 @@ export const useDateStore = defineStore('dateStore', () => {
     startTime,
     timeSlot,
     minimumCourseDate,
-    maximumCourseDate,
+    refreshServerDateBoundaries,
+    isTimeSlotUnavailable,
+    selectCourseDate,
 
     district,
     spaceType,

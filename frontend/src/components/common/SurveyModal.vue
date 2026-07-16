@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDateStore } from '@/stores/dateStore'
 import BaseButton from './BaseButton.vue'
@@ -15,6 +15,11 @@ const answersForKey = computed(() =>
 const progressWidth = computed(
   () => `${((store.surveyStep + 1) / store.surveyStepsList.length) * 100}%`,
 )
+const calendarYear = ref(0)
+const calendarMonth = ref(0)
+const availabilityTick = ref(Date.now())
+let availabilityTimer: number | null = null
+
 const timeOptions: Array<{ value: TimeSlot; emoji: string; label: string; time: string }> = [
   { value: 'MORNING', emoji: '🌤️', label: '오전', time: '09:00부터' },
   { value: 'AFTERNOON', emoji: '☀️', label: '오후', time: '14:00부터' },
@@ -33,6 +38,113 @@ const spaceOptions: Array<{ value: SpaceType; emoji: string; label: string }> = 
   { value: 'INDOOR', emoji: '🏠', label: '실내 중심' },
   { value: 'OUTDOOR', emoji: '🌳', label: '실외 중심' },
 ]
+const weekdays = ['일', '월', '화', '수', '목', '금', '토']
+
+const calendarMonthLabel = computed(() => `${calendarYear.value}년 ${calendarMonth.value}월`)
+const minimumMonth = computed(() => store.minimumCourseDate.slice(0, 7))
+const currentCalendarMonth = computed(
+  () => `${calendarYear.value}-${String(calendarMonth.value).padStart(2, '0')}`,
+)
+const canMoveToPreviousMonth = computed(() => currentCalendarMonth.value > minimumMonth.value)
+const selectedDateLabel = computed(() => {
+  const [year, month, day] = store.courseDate.split('-').map(Number)
+  if (!year || !month || !day) return '날짜를 선택해 주세요'
+  const weekday = new Intl.DateTimeFormat('ko-KR', {
+    timeZone: 'Asia/Seoul',
+    weekday: 'short',
+  }).format(new Date(Date.UTC(year, month - 1, day)))
+  return `${month}월 ${day}일 ${weekday}요일`
+})
+const calendarDays = computed(() => {
+  const firstDay = new Date(Date.UTC(calendarYear.value, calendarMonth.value - 1, 1))
+  const startOffset = firstDay.getUTCDay()
+  const previousMonthDays = new Date(
+    Date.UTC(calendarYear.value, calendarMonth.value - 1, 0),
+  ).getUTCDate()
+  const daysInMonth = new Date(Date.UTC(calendarYear.value, calendarMonth.value, 0)).getUTCDate()
+
+  return Array.from({ length: 42 }, (_, index) => {
+    const relativeDay = index - startOffset + 1
+    const inCurrentMonth = relativeDay >= 1 && relativeDay <= daysInMonth
+    const day =
+      relativeDay < 1
+        ? previousMonthDays + relativeDay
+        : relativeDay > daysInMonth
+          ? relativeDay - daysInMonth
+          : relativeDay
+    const target = new Date(Date.UTC(calendarYear.value, calendarMonth.value - 1, relativeDay))
+    const date = target.toISOString().slice(0, 10)
+    return {
+      date,
+      day,
+      inCurrentMonth,
+      disabled: !inCurrentMonth || date < store.minimumCourseDate,
+    }
+  })
+})
+const noAvailableTimeSlots = computed(() => {
+  return (
+    availabilityTick.value > 0 &&
+    timeOptions.every((option) => store.isTimeSlotUnavailable(option.value))
+  )
+})
+
+function syncCalendarMonth(date: string) {
+  const [year, month] = date.split('-').map(Number)
+  if (!year || !month) return
+  calendarYear.value = year
+  calendarMonth.value = month
+}
+
+function changeCalendarMonth(offset: number) {
+  const target = new Date(Date.UTC(calendarYear.value, calendarMonth.value - 1 + offset, 1))
+  const targetMonth = `${target.getUTCFullYear()}-${String(target.getUTCMonth() + 1).padStart(2, '0')}`
+  if (targetMonth < minimumMonth.value) return
+  calendarYear.value = target.getUTCFullYear()
+  calendarMonth.value = target.getUTCMonth() + 1
+}
+
+function selectCalendarDate(date: string, disabled: boolean) {
+  if (!disabled) store.selectCourseDate(date)
+}
+
+function isTimeOptionDisabled(value: TimeSlot) {
+  return availabilityTick.value > 0 && store.isTimeSlotUnavailable(value)
+}
+
+function stopAvailabilityClock() {
+  if (availabilityTimer !== null) {
+    window.clearInterval(availabilityTimer)
+    availabilityTimer = null
+  }
+}
+
+function refreshAvailability() {
+  availabilityTick.value = Date.now()
+  store.refreshServerDateBoundaries()
+  if (store.courseDate < store.minimumCourseDate) {
+    store.selectCourseDate(store.minimumCourseDate)
+  } else {
+    store.selectCourseDate(store.courseDate)
+  }
+}
+
+watch(
+  () => store.showSurvey,
+  (isOpen) => {
+    stopAvailabilityClock()
+    if (!isOpen) return
+    refreshAvailability()
+    syncCalendarMonth(store.courseDate)
+    availabilityTimer = window.setInterval(refreshAvailability, 30_000)
+  },
+  { immediate: true },
+)
+watch(
+  () => store.courseDate,
+  (date) => syncCalendarMonth(date),
+)
+onUnmounted(stopAvailabilityClock)
 
 async function handleNextSurveyStep() {
   await store.nextSurveyStep()
@@ -67,10 +179,54 @@ async function handleNextSurveyStep() {
           <p>날씨와 취향, 이동 동선을 살펴보고 있어요.</p>
         </div>
         <div v-else-if="currentStepData.kind === 'datetime'" class="schedule-options">
-          <div class="today-chip">
-            <span>데이트 날짜</span>
-            <strong>{{ store.courseDate }}</strong>
-            <small>오늘 날짜로 코스를 만들어요</small>
+          <div class="date-picker-card">
+            <div class="calendar-head">
+              <button
+                type="button"
+                aria-label="이전 달"
+                :disabled="!canMoveToPreviousMonth"
+                @click="changeCalendarMonth(-1)"
+              >
+                ‹
+              </button>
+              <div>
+                <span>DATE CALENDAR</span>
+                <strong>{{ calendarMonthLabel }}</strong>
+              </div>
+              <button
+                type="button"
+                aria-label="다음 달"
+                @click="changeCalendarMonth(1)"
+              >
+                ›
+              </button>
+            </div>
+            <div class="calendar-weekdays" aria-hidden="true">
+              <span v-for="weekday in weekdays" :key="weekday">{{ weekday }}</span>
+            </div>
+            <div class="calendar-days">
+              <button
+                v-for="day in calendarDays"
+                :key="day.date"
+                type="button"
+                :disabled="day.disabled"
+                :class="{
+                  outside: !day.inCurrentMonth,
+                  today: day.date === store.minimumCourseDate,
+                  selected: day.date === store.courseDate,
+                }"
+                :aria-label="`${day.date}${day.disabled ? ' 선택 불가' : ' 선택'}`"
+                @click="selectCalendarDate(day.date, day.disabled)"
+              >
+                <span>{{ day.day }}</span>
+                <small v-if="day.date === store.minimumCourseDate">오늘</small>
+              </button>
+            </div>
+          </div>
+          <div class="selected-date-summary">
+            <span>선택한 데이트</span>
+            <strong>{{ selectedDateLabel }}</strong>
+            <small>{{ store.courseDate }}</small>
           </div>
           <div class="choice-label">시간대</div>
           <div class="time-options">
@@ -78,14 +234,25 @@ async function handleNextSurveyStep() {
               v-for="option in timeOptions"
               :key="option.value"
               type="button"
-              :class="{ selected: store.timeSlot === option.value }"
+              :disabled="isTimeOptionDisabled(option.value)"
+              :class="{
+                selected: store.timeSlot === option.value,
+                expired: isTimeOptionDisabled(option.value),
+              }"
               @click="store.selectTimeSlot(option.value)"
             >
               <b>{{ option.emoji }}</b>
               <strong>{{ option.label }}</strong>
-              <small>{{ option.time }}</small>
+              <small>{{ isTimeOptionDisabled(option.value) ? '선택 마감' : option.time }}</small>
             </button>
           </div>
+          <p v-if="store.courseDate === store.minimumCourseDate" class="server-time-guide">
+            <span>SERVER TIME</span>
+            오늘은 서버 기준으로 이미 시작된 시간대를 선택할 수 없어요.
+          </p>
+          <p v-if="noAvailableTimeSlots" class="slot-unavailable-guide">
+            오늘 선택 가능한 시간대가 없어요. 내일 이후 날짜를 선택해 주세요.
+          </p>
         </div>
         <div v-else-if="currentStepData.kind === 'location'" class="location-options">
           <div class="choice-label">데이트 지역</div>
@@ -161,10 +328,17 @@ async function handleNextSurveyStep() {
 
 .sheet {
   width: 100%;
+  max-height: calc(100% - 18px);
+  overflow-y: auto;
   background: #fff;
   box-shadow: var(--shadow);
   padding: 11px 17px 19px;
   border-radius: 27px;
+  scrollbar-width: none;
+}
+
+.sheet::-webkit-scrollbar {
+  display: none;
 }
 
 .sheet-notch {
@@ -255,34 +429,160 @@ async function handleNextSurveyStep() {
   display: grid;
 }
 
-.today-chip {
+.date-picker-card {
+  padding: 14px 13px 12px;
+  border: 1px solid #f0dce2;
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(236, 218, 255, 0.68), transparent 38%),
+    linear-gradient(145deg, #fff8f9 0%, #fff 55%, #fff5f8 100%);
+  box-shadow: 0 12px 28px rgba(168, 91, 112, 0.08);
+}
+
+.calendar-head {
+  display: grid;
+  grid-template-columns: 34px 1fr 34px;
+  align-items: center;
+  margin-bottom: 13px;
+}
+
+.calendar-head > div {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+}
+
+.calendar-head span {
+  color: #b88794;
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+}
+
+.calendar-head strong {
+  color: #4d3d43;
+  font-size: 13px;
+}
+
+.calendar-head button {
+  width: 30px;
+  height: 30px;
+  border: 1px solid #f0dce2;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #c9697e;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.calendar-head button:disabled {
+  border-color: #f2ecee;
+  background: rgba(249, 246, 247, 0.7);
+  color: #d9ced1;
+}
+
+.calendar-weekdays,
+.calendar-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+
+.calendar-weekdays {
+  margin-bottom: 4px;
+}
+
+.calendar-weekdays span {
+  color: #a99ca0;
+  font-size: 8px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.calendar-weekdays span:first-child {
+  color: #d78394;
+}
+
+.calendar-days {
+  gap: 2px 1px;
+}
+
+.calendar-days button {
+  position: relative;
+  min-width: 0;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 0;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: #55474c;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.calendar-days button:nth-child(7n + 1):not(.selected) {
+  color: #d4798c;
+}
+
+.calendar-days button:hover:not(:disabled):not(.selected) {
+  background: #fff0f4;
+}
+
+.calendar-days button.today:not(.selected) {
+  box-shadow: inset 0 0 0 1px #edb1bf;
+}
+
+.calendar-days button.selected {
+  background: linear-gradient(145deg, #ec7890, #d95f7c);
+  box-shadow: 0 7px 14px rgba(216, 91, 120, 0.24);
+  color: #fff;
+}
+
+.calendar-days button:disabled {
+  color: #d9d1d3;
+  cursor: not-allowed;
+}
+
+.calendar-days button.outside {
+  opacity: 0.24;
+}
+
+.calendar-days button small {
+  font-size: 5px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.selected-date-summary {
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: center;
-  gap: 3px 10px;
-  padding: 13px 14px;
-  border: 1px solid #f1dce1;
-  border-radius: 15px;
-  background: linear-gradient(135deg, #fff4f6, #f7f2ff);
+  gap: 2px 10px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 13px;
+  background: #f9f3f5;
 }
 
-.today-chip span,
+.selected-date-summary span,
 .choice-label {
   color: #a66f7c;
   font-size: 9px;
   font-weight: 900;
 }
 
-.today-chip strong {
+.selected-date-summary strong {
   grid-row: 1 / 3;
   grid-column: 2;
-  color: #d45d75;
-  font-size: 12px;
+  color: #c95670;
+  font-size: 11px;
 }
 
-.today-chip small {
+.selected-date-summary small {
   color: var(--muted);
-  font-size: 8px;
+  font-size: 7px;
 }
 
 .choice-label {
@@ -318,6 +618,49 @@ async function handleNextSurveyStep() {
 .time-options button small {
   color: var(--muted);
   font-size: 7px;
+}
+
+.time-options button:disabled {
+  border-color: #eee7e8;
+  background: #f7f4f4;
+  box-shadow: none;
+  color: #bdb4b6;
+  cursor: not-allowed;
+}
+
+.time-options button:disabled b {
+  filter: grayscale(1);
+  opacity: 0.44;
+}
+
+.time-options button:disabled small {
+  color: #c4babc;
+}
+
+.server-time-guide,
+.slot-unavailable-guide {
+  margin: 8px 2px 0;
+  padding: 0 2px;
+  color: #8d7d82;
+  font-size: 8px;
+  line-height: 1.55;
+}
+
+.server-time-guide span {
+  margin-right: 4px;
+  color: #cc657c;
+  font-size: 6px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.slot-unavailable-guide {
+  padding: 8px 10px;
+  border: 1px solid #f3dce2;
+  border-radius: 10px;
+  background: #fff4f6;
+  color: #bd596f;
+  font-weight: 800;
 }
 
 .district-options {

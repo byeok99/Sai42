@@ -14,7 +14,7 @@ async function navigate(tabName: string) {
     await Promise.all([store.loadHistory(), store.loadRankings()])
   }
   if (tabName === 'ranking') {
-    await store.loadRankings()
+    await store.loadRankings(1)
   }
   await router.push({ name: tabName })
 }

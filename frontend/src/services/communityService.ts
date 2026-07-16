@@ -1,7 +1,11 @@
 import { communityRepository } from '@/services/repositories/communityRepository'
+import type { ApiHeaders } from '@/types/api/common'
 
 export const communityService = {
-  listPosts: (params?: { sort?: 'POPULAR' | 'LATEST' }) => communityRepository.listPosts(params),
+  listPosts: (
+    params?: { sort?: 'POPULAR' | 'LATEST'; page?: number; size?: number },
+    headers?: ApiHeaders,
+  ) => communityRepository.listPosts(params, headers),
   getPost: (postId: string) => communityRepository.getPost(postId),
   createPost: (
     payload: { courseId: string; oneLineComment: string },

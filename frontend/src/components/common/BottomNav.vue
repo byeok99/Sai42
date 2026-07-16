@@ -44,10 +44,10 @@ async function navigate(tabName: string) {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 76px;
+  height: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom));
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  padding: 7px 10px 9px;
+  padding: 7px 10px calc(9px + env(safe-area-inset-bottom));
   border-top: 1px solid rgba(235, 223, 225, 0.86);
   background: rgba(255, 255, 255, 0.92);
   box-shadow: 0 -10px 26px rgba(80, 54, 62, 0.08);
@@ -107,5 +107,20 @@ button.active .nav-icon {
   box-shadow: 0 7px 13px rgba(211, 91, 132, 0.22);
   color: #fff;
   transform: translateY(-1px);
+}
+
+@media (max-width: 360px) {
+  .nav {
+    padding-right: 5px;
+    padding-left: 5px;
+  }
+
+  button {
+    border-radius: 13px;
+  }
+
+  .nav-label {
+    font-size: 7px;
+  }
 }
 </style>

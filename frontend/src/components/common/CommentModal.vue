@@ -15,6 +15,7 @@ async function submit() {
   submitting.value = false
   if (!completed) return
   comment.value = ''
+  await Promise.all([store.loadRankings(1), store.loadFeaturedRankings(), store.loadMasters()])
   await router.push({ name: 'ranking' })
 }
 

@@ -26,6 +26,17 @@ function handleNext(coursePlaceId: string) {
   void store.nextPlace(coursePlaceId)
 }
 
+function isPlaceCompleted(order: number) {
+  return order <= (store.activeCourse?.progress.completedPlaceCount ?? 0)
+}
+
+function isCurrentPlace(order: number) {
+  return (
+    !store.activeCourse?.progress.allPlacesCompleted &&
+    order === store.activeCourse?.progress.currentOrderNo
+  )
+}
+
 function endDating() {
   store.showCommentModal = true
 }
@@ -165,20 +176,20 @@ onMounted(() => {
             :key="place.coursePlaceId"
             :class="[
               'place-card',
-              { done: place.order < store.activeCourse.progress.currentOrderNo },
-              { current: place.order === store.activeCourse.progress.currentOrderNo },
+              { done: isPlaceCompleted(place.order) },
+              { current: isCurrentPlace(place.order) },
             ]"
           >
             <div class="step-badge">
-              {{ place.order < store.activeCourse.progress.currentOrderNo ? '✓' : place.order }}
+              {{ isPlaceCompleted(place.order) ? '✓' : place.order }}
             </div>
             <div class="place-info">
               <h4>{{ place.place.name }}</h4>
               <p>
                 {{
-                  place.order === store.activeCourse.progress.currentOrderNo
+                  isCurrentPlace(place.order)
                     ? '현재 방문 중이에요'
-                    : place.order < store.activeCourse.progress.currentOrderNo
+                    : isPlaceCompleted(place.order)
                       ? '다녀온 장소'
                       : '다음 장소'
                 }}
@@ -192,14 +203,15 @@ onMounted(() => {
                 {{ place.heartedByMe ? '♥ 좋아요' : '♡ 좋아요' }}
               </button>
               <button
-                v-if="
-                  place.order === store.activeCourse.progress.currentOrderNo &&
-                  !store.activeCourse.progress.allPlacesCompleted
-                "
+                v-if="isCurrentPlace(place.order)"
                 class="next-step-btn"
                 @click="handleNext(place.coursePlaceId)"
               >
-                다음 장소
+                {{
+                  place.order === store.activeCourse.progress.totalPlaceCount
+                    ? '장소 완료'
+                    : '다음 장소'
+                }}
               </button>
             </div>
           </div>
@@ -613,10 +625,17 @@ onMounted(() => {
   background: #76c2a3;
 }
 
+.place-info {
+  min-width: 0;
+}
+
 .place-info h4 {
+  overflow: hidden;
   margin: 0 0 4px;
   font-size: 11px;
   font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .place-info p {
@@ -751,5 +770,33 @@ onMounted(() => {
   overflow: hidden;
   margin-bottom: 0;
   border: 1px solid var(--line);
+}
+
+@media (max-width: 360px) {
+  .place-card {
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .step-badge {
+    width: 32px;
+    height: 32px;
+  }
+
+  .place-actions {
+    grid-column: 2;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .map-modal-overlay {
+    padding: 10px;
+  }
+
+  .map-modal {
+    height: 76dvh;
+    padding: 12px;
+  }
 }
 </style>

@@ -30,7 +30,7 @@ defineProps<{
   justify-content: space-between;
   align-items: center;
   padding: 12px 18px 10px;
-  overflow: hidden;
+  overflow: visible;
   border-bottom: 1px solid rgba(238, 227, 224, 0.82);
   background:
     radial-gradient(circle at 87% -30%, rgba(221, 209, 255, 0.42), transparent 38%),
@@ -49,6 +49,7 @@ defineProps<{
 }
 
 .page-heading {
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -72,17 +73,40 @@ defineProps<{
 }
 
 .page-heading h2 {
+  overflow: hidden;
   margin: 3px 0 0;
   color: var(--ink);
   font-size: 20px;
   font-weight: 900;
   letter-spacing: -0.03em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .page-header-action {
   position: relative;
   z-index: 1;
   display: flex;
+  min-width: 0;
   align-items: center;
+}
+
+@media (max-width: 380px) {
+  .page-header {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .page-heading {
+    gap: 8px;
+  }
+
+  .page-heading h2 {
+    font-size: 17px;
+  }
+
+  .page-header-action {
+    max-width: 46%;
+  }
 }
 </style>

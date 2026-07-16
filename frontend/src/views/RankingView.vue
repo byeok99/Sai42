@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDateStore } from '@/stores/dateStore'
 import BaseCard from '@/components/common/BaseCard.vue'
@@ -11,7 +11,8 @@ const store = useDateStore()
 const router = useRouter()
 const rankTab = ref<'all' | 'masters'>('all')
 const currentPage = ref(1)
-const PAGE_SIZE = 5
+const COURSE_PAGE_SIZE = 5
+const MASTER_PAGE_SIZE = 10
 
 const sortedRankings = computed(() => {
   return [...store.rankings]
@@ -21,11 +22,11 @@ const sortedRankings = computed(() => {
         b.publishedAt.localeCompare(a.publishedAt) ||
         a.postId.localeCompare(b.postId),
     )
-    .slice(0, PAGE_SIZE)
+    .slice(0, COURSE_PAGE_SIZE)
 })
 const pagedMasters = computed(() => {
-  const start = (currentPage.value - 1) * PAGE_SIZE
-  return store.masters.slice(start, start + PAGE_SIZE)
+  const start = (currentPage.value - 1) * MASTER_PAGE_SIZE
+  return store.masters.slice(start, start + MASTER_PAGE_SIZE)
 })
 const podiumMasters = computed(() =>
   [2, 1, 3].flatMap((rank) => {
@@ -41,11 +42,11 @@ const listedMasters = computed(() =>
 const totalPages = computed(() =>
   rankTab.value === 'all'
     ? Math.max(1, store.rankingMeta?.totalPages ?? 1)
-    : Math.max(1, Math.ceil(store.masters.length / PAGE_SIZE)),
+    : Math.max(1, Math.ceil(store.masters.length / MASTER_PAGE_SIZE)),
 )
 
 function courseRank(index: number) {
-  return (currentPage.value - 1) * PAGE_SIZE + index + 1
+  return (currentPage.value - 1) * COURSE_PAGE_SIZE + index + 1
 }
 
 function rankerClass(rank: number) {
@@ -179,6 +180,8 @@ async function refreshRankings() {
     await store.loadMasters()
   } else {
     await Promise.all([store.loadRankings(currentPage.value), store.loadFeaturedRankings()])
+    await nextTick()
+    startLiveSlide()
     const lastPage = Math.max(1, store.rankingMeta?.totalPages ?? 1)
     if (currentPage.value > lastPage) {
       currentPage.value = lastPage
@@ -233,9 +236,26 @@ function selectRankTab(tab: 'all' | 'masters') {
   if (rankTab.value === tab) return
   rankTab.value = tab
   currentPage.value = 1
-  if (tab === 'masters') void store.loadMasters()
-  else void store.loadRankings(currentPage.value)
+  if (tab === 'masters') {
+    stopLiveSlide()
+    void store.loadMasters()
+  } else {
+    void Promise.all([store.loadRankings(currentPage.value), store.loadFeaturedRankings()]).then(
+      async () => {
+        await nextTick()
+        startLiveSlide()
+      },
+    )
+  }
 }
+
+onMounted(async () => {
+  await store.loadFeaturedRankings()
+  await nextTick()
+  startLiveSlide()
+})
+
+onUnmounted(stopLiveSlide)
 </script>
 
 <template>

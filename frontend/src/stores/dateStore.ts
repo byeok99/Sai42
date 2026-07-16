@@ -90,6 +90,7 @@ export const useDateStore = defineStore('dateStore', () => {
   const defaultSchedule = defaultCourseSchedule()
   const courseDate = ref(defaultSchedule.date)
   const startTime = ref(defaultSchedule.startTime)
+  const timeSlot = ref<CreateChatSessionRequestDto['timeSlot']>('FULL_DAY')
 
   const minimumCourseDate = ref(defaultSchedule.date)
   const maximumCourseDate = ref(maximumWeatherDate())
@@ -501,13 +502,11 @@ export const useDateStore = defineStore('dateStore', () => {
     if (weatherLoading.value) return
     weatherLoading.value = true
     try {
-      const headers = profileId.value && password.value ? authHeaders() : undefined
-      todayWeather.value = (
-        await weatherService.getWeather(
-          { date: todayInSeoul(), district: 'ANY', timeSlot: 'FULL_DAY' },
-          headers,
-        )
-      ).data
+      todayWeather.value = await weatherService.getWeatherWithRetry({
+        date: todayInSeoul(),
+        district: 'ANY',
+        timeSlot: 'FULL_DAY',
+      })
     } catch {
       todayWeather.value = null
     } finally {
@@ -680,7 +679,7 @@ export const useDateStore = defineStore('dateStore', () => {
     surveyStepsList,
     courseDate,
     startTime,
-
+    timeSlot,
     minimumCourseDate,
     maximumCourseDate,
 

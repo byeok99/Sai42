@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
+
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDateStore } from '@/stores/dateStore'
 import BaseCard from '@/components/common/BaseCard.vue'
@@ -193,14 +194,29 @@ async function changePage(page: number) {
 }
 
 function startPull(event: TouchEvent) {
-  if ((scrollArea.value?.scrollTop ?? 0) <= 0) pullStartY.value = event.touches[0]?.clientY ?? null
+  if (refreshing.value || (scrollArea.value?.scrollTop ?? 0) > 0 || event.touches.length !== 1)
+    return
+  pullStartY.value = event.touches[0]?.clientY ?? null
 }
 
 function movePull(event: TouchEvent) {
   if (pullStartY.value === null) return
+  if ((scrollArea.value?.scrollTop ?? 0) > 0) {
+    pullStartY.value = null
+    pullDistance.value = 0
+    return
+  }
+
+  const distance = (event.touches[0]?.clientY ?? pullStartY.value) - pullStartY.value
+  if (distance <= 0) {
+    pullDistance.value = 0
+    return
+  }
+
+  if (event.cancelable) event.preventDefault()
   pullDistance.value = Math.min(
     78,
-    Math.max(0, (event.touches[0]?.clientY ?? pullStartY.value) - pullStartY.value),
+    distance,
   )
 }
 
@@ -211,33 +227,15 @@ function endPull() {
   if (shouldRefresh) void refreshRankings()
 }
 
-onMounted(async () => {
-  await refreshRankings()
-  await nextTick()
-  goToLiveSlide(0, 'auto')
-  startLiveSlide()
-})
-onUnmounted(stopLiveSlide)
-watch(rankTab, async () => {
+
+function selectRankTab(tab: 'all' | 'masters') {
+  if (rankTab.value === tab) return
+  rankTab.value = tab
   currentPage.value = 1
-  activeLiveSlide.value = 0
-  await refreshRankings()
-  await nextTick()
-  if (rankTab.value === 'all') {
-    goToLiveSlide(0, 'auto')
-    startLiveSlide()
-  } else {
-    stopLiveSlide()
-  }
-})
-watch(
-  () => store.featuredRankings.length,
-  async () => {
-    await nextTick()
-    goToLiveSlide(0, 'auto')
-    startLiveSlide()
-  },
-)
+  if (tab === 'masters') void store.loadMasters()
+  else void store.loadRankings(currentPage.value)
+}
+
 </script>
 
 <template>
@@ -320,8 +318,8 @@ watch(
 
       <!-- Tabs -->
       <div class="tabs">
-        <button :class="{ active: rankTab === 'all' }" @click="rankTab = 'all'">인기 코스</button>
-        <button :class="{ active: rankTab === 'masters' }" @click="rankTab = 'masters'">
+        <button :class="{ active: rankTab === 'all' }" @click="selectRankTab('all')">인기 코스</button>
+        <button :class="{ active: rankTab === 'masters' }" @click="selectRankTab('masters')">
           마스터 랭킹
         </button>
       </div>

@@ -8,7 +8,13 @@ const router = useRouter()
 const currentTab = computed(() => route.name as string)
 
 async function navigate(tabName: string) {
-  if (currentTab.value === tabName) return
+
+  if (tabName === 'history') {
+    await Promise.all([store.loadHistory(), store.loadRankings()])
+  }
+  if (tabName === 'ranking') {
+    await store.loadRankings(1)
+  }
   await router.push({ name: tabName })
 }
 </script>

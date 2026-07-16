@@ -149,7 +149,8 @@ watch(hasCourseDraft, (hasDraft) => {
 
     <div class="scroll-area">
       <!-- Weather Card -->
-      <BaseCard v-if="displayedWeather" class="weather-card">
+
+      <BaseCard class="weather-card" v-if="store.course.weather?.available">
         <div class="weather-left">
           <span class="emoji">{{ weatherEmoji(displayedWeather.condition) }}</span>
           <div>
@@ -171,20 +172,23 @@ watch(hasCourseDraft, (hasDraft) => {
           강수 {{ displayedWeather.precipitationProbability ?? 0 }}%
         </BaseBadge>
       </BaseCard>
+      <BaseCard class="weather-card weather-unavailable-card" v-else-if="store.course.weather">
+        <div class="weather-left">
+          <span class="emoji">🌫️</span>
+          <div>
+            <strong>대전 날씨를 불러올 수 없어요</strong>
+            <p>서버가 불안정하여 날씨 정보를 불러올 수 없습니다.</p>
+          </div>
+        </div>
+      </BaseCard>
       <BaseCard class="weather-card" v-else>
         <div class="weather-left">
           <span class="emoji">🌦️</span>
           <div>
-            <strong>{{
-              store.weatherLoading ? '대전 날씨 불러오는 중...' : '날씨를 준비하지 못했어요'
-            }}</strong>
-            <p>
-              {{
-                store.weatherLoading
-                  ? '오늘의 데이트 날씨를 확인하고 있어요.'
-                  : '코스 생성 시 다시 확인할게요.'
-              }}
-            </p>
+
+            <strong>대전 날씨는 코스를 만들 때 확인해요</strong>
+            <p>데이트 조건을 입력하면 날씨를 반영해 추천해 드릴게요.</p>
+
           </div>
         </div>
       </BaseCard>
@@ -461,6 +465,10 @@ watch(hasCourseDraft, (hasDraft) => {
     radial-gradient(circle at 90% 10%, rgba(255, 255, 255, 0.72), transparent 24%),
     linear-gradient(135deg, #fff1c9, #ffe1e8 68%, #eee6ff);
   box-shadow: 0 12px 26px rgba(110, 73, 82, 0.1);
+}
+
+.weather-unavailable-card {
+  background: linear-gradient(135deg, #f5efed, #eee8ff);
 }
 
 .weather-left {

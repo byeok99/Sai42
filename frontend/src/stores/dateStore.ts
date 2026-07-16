@@ -60,6 +60,20 @@ function todayInSeoul() {
   return `${value('year')}-${value('month')}-${value('day')}`
 }
 
+function maximumWeatherDate() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date())
+  const value = (type: string) => parts.find((part) => part.type === type)?.value ?? ''
+  const date = new Date(
+    Date.UTC(Number(value('year')), Number(value('month')) - 1, Number(value('day')) + 3),
+  )
+  return date.toISOString().slice(0, 10)
+}
+
 export const useDateStore = defineStore('dateStore', () => {
   const authMode = ref<'enter' | 'register'>('enter')
   const name = ref('')
@@ -76,7 +90,10 @@ export const useDateStore = defineStore('dateStore', () => {
   const defaultSchedule = defaultCourseSchedule()
   const courseDate = ref(defaultSchedule.date)
   const startTime = ref(defaultSchedule.startTime)
-  const timeSlot = ref<CreateChatSessionRequestDto['timeSlot']>('FULL_DAY')
+
+  const minimumCourseDate = ref(defaultSchedule.date)
+  const maximumCourseDate = ref(maximumWeatherDate())
+
   const district = ref<CreateChatSessionRequestDto['district']>('YUSEONG_GU')
   const spaceType = ref<CreateChatSessionRequestDto['spaceType']>('ANY')
   const showSurvey = ref(false)
@@ -338,11 +355,25 @@ export const useDateStore = defineStore('dateStore', () => {
     sessionId.value = response.data.id
     messages.value = [{ role: 'bot', content: response.data.assistantMessage.content }]
     applyDraft(response.data.draft)
+    if (!response.data.draft.weather?.available) {
+      const weather = await weatherService.getWeatherWithRetry({
+        date: courseDate.value,
+        district: district.value,
+        timeSlot: 'AFTERNOON',
+      })
+      if (weather) course.value.weather = weather
+    }
   }
 
   async function nextSurveyStep() {
     const step = surveyStepsList[surveyStep.value]!
-    if (step.kind === 'datetime' && !timeSlot.value) return triggerToast('시간대를 선택해 주세요.')
+
+    if (step.kind === 'datetime') {
+      if (!courseDate.value || !startTime.value)
+        return triggerToast('날짜와 시작 시각을 선택해 주세요.')
+      if (courseDate.value > maximumCourseDate.value)
+        return triggerToast('날씨 정보는 글피까지 선택할 수 있어요.')
+    }
     if (step.key && !surveyAnswers.value[step.key].length)
       return triggerToast('하나 이상 선택해 주세요.')
     if (surveyStep.value < surveyStepsList.length - 1) {
@@ -649,7 +680,10 @@ export const useDateStore = defineStore('dateStore', () => {
     surveyStepsList,
     courseDate,
     startTime,
-    timeSlot,
+
+    minimumCourseDate,
+    maximumCourseDate,
+
     district,
     spaceType,
     showSurvey,

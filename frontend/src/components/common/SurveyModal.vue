@@ -169,12 +169,13 @@ async function handleNextSurveyStep() {
 
 .sheet-notch {
   position: relative;
+  min-height: 34px;
 }
 
 .handle {
   width: 45px;
   height: 5px;
-  margin: 0 auto 13px;
+  margin: 0 auto;
   background: #e6dad7;
   border-radius: 6px;
 }

@@ -48,6 +48,7 @@ export class ApiClient {
       headers?: ApiHeaders
       body?: unknown
       params?: Record<string, string | number | boolean | undefined>
+      timeoutMs?: number
     } = {},
   ): Promise<BaseDto<T>> {
     const url = new URL(`${this.baseUrl}${path}`, window.location.origin)
@@ -58,11 +59,22 @@ export class ApiClient {
       }
     })
 
-    const response = await fetch(url, {
-      method,
-      headers: this.getHeaders(options.headers),
-      ...(method !== 'GET' && options.body ? { body: JSON.stringify(options.body) } : {}),
-    })
+    const controller = options.timeoutMs ? new AbortController() : null
+    const timeoutId = controller
+      ? window.setTimeout(() => controller.abort(), options.timeoutMs)
+      : null
+
+    let response: Response
+    try {
+      response = await fetch(url, {
+        method,
+        headers: this.getHeaders(options.headers),
+        ...(method !== 'GET' && options.body ? { body: JSON.stringify(options.body) } : {}),
+        ...(controller ? { signal: controller.signal } : {}),
+      })
+    } finally {
+      if (timeoutId !== null) window.clearTimeout(timeoutId)
+    }
 
     const payload = (await response.json().catch(() => null)) as
       | BaseDto<T>
@@ -93,6 +105,7 @@ export class ApiClient {
     options?: {
       headers?: ApiHeaders
       params?: Record<string, string | number | boolean | undefined>
+      timeoutMs?: number
     },
   ): Promise<BaseDto<T>> {
     return this.request<T>('GET', path, options)

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+
+import { computed, ref } from 'vue'
 import { useDateStore } from '@/stores/dateStore'
 import BaseCard from '@/components/common/BaseCard.vue'
 import BaseButton from '@/components/common/BaseButton.vue'
@@ -119,14 +120,29 @@ function selectCalendarDate(date: string | null, count: number) {
 }
 
 function startPull(event: TouchEvent) {
-  if ((scrollArea.value?.scrollTop ?? 0) <= 0) pullStartY.value = event.touches[0]?.clientY ?? null
+  if (refreshing.value || (scrollArea.value?.scrollTop ?? 0) > 0 || event.touches.length !== 1)
+    return
+  pullStartY.value = event.touches[0]?.clientY ?? null
 }
 
 function movePull(event: TouchEvent) {
   if (pullStartY.value === null) return
+  if ((scrollArea.value?.scrollTop ?? 0) > 0) {
+    pullStartY.value = null
+    pullDistance.value = 0
+    return
+  }
+
+  const distance = (event.touches[0]?.clientY ?? pullStartY.value) - pullStartY.value
+  if (distance <= 0) {
+    pullDistance.value = 0
+    return
+  }
+
+  if (event.cancelable) event.preventDefault()
   pullDistance.value = Math.min(
     78,
-    Math.max(0, (event.touches[0]?.clientY ?? pullStartY.value) - pullStartY.value),
+    distance,
   )
 }
 
@@ -137,7 +153,8 @@ function endPull() {
   if (shouldRefresh) void refreshHistory()
 }
 
-function editPost(courseId: string, currentComment: string, courseTitle: string) {
+
+async function editPost(courseId: string, currentComment: string) {
   const post = postsByCourseId.value.get(courseId)
   if (!post) return
   editPostId.value = post.postId

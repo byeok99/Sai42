@@ -1,6 +1,7 @@
 import { apiClient } from '@/services/api/client'
 import { apiEndpoints } from '@/services/api/endpoints'
-import type { ApiHeaders, BaseDto } from '@/types/api/common'
+
+import type { BaseDto } from '@/types/api/common'
 import type { District, TimeSlot, WeatherSummaryDto } from '@/types/api/course'
 
 export interface WeatherQuery {
@@ -10,18 +11,16 @@ export interface WeatherQuery {
 }
 
 export interface WeatherRepository {
-  getWeather(query: WeatherQuery, headers?: ApiHeaders): Promise<BaseDto<WeatherSummaryDto>>
+
+  getWeather(query: WeatherQuery, timeoutMs: number): Promise<BaseDto<WeatherSummaryDto>>
 }
 
 export class WeatherRepositoryImpl implements WeatherRepository {
-  async getWeather(query: WeatherQuery, headers?: ApiHeaders) {
+  getWeather(query: WeatherQuery, timeoutMs: number): Promise<BaseDto<WeatherSummaryDto>> {
     return apiClient.get<WeatherSummaryDto>(apiEndpoints.weather, {
-      params: {
-        date: query.date,
-        district: query.district,
-        timeSlot: query.timeSlot,
-      },
-      headers,
+      params: { ...query },
+      timeoutMs,
+
     })
   }
 }

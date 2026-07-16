@@ -277,7 +277,7 @@ watch(hasCourseDraft, (hasDraft) => {
       </section>
 
       <button
-        v-if="!hasCourseDraft"
+        v-if="!hasCourseDraft || store.activeCourse"
         class="roulette-banner"
         type="button"
         aria-label="커플 룰렛 게임 시작"

@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useDateStore } from '@/stores/dateStore'
 import BaseCard from '@/components/common/BaseCard.vue'
 import LeafletMap from '@/components/map/LeafletMap.vue'
+import PageHeader from '@/components/common/PageHeader.vue'
 import { formatDistrict } from '@/utils/district'
 
 const store = useDateStore()
@@ -158,13 +159,9 @@ watch(rankTab, () => {
 
 <template>
   <div class="ranking-view">
-    <header class="top-bar">
-      <div>
-        <p class="section-label">COMMUNITY</p>
-        <h2>데이트 랭킹보드</h2>
-      </div>
+    <PageHeader eyebrow="COMMUNITY" title="데이트 랭킹보드">
       <button class="help-btn" @click="showHelp">?</button>
-    </header>
+    </PageHeader>
 
     <div
       ref="scrollArea"
@@ -373,31 +370,6 @@ watch(rankTab, () => {
   display: flex;
   flex-direction: column;
   background: linear-gradient(180deg, #fffaf7 0%, #fff7f9 46%, #f8f3ff 100%);
-}
-
-.top-bar {
-  height: 72px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 14px 18px 10px;
-  background: rgba(255, 250, 245, 0.94);
-  border-bottom: 1px solid rgba(238, 227, 224, 0.8);
-  backdrop-filter: blur(12px);
-}
-
-.section-label {
-  margin: 0;
-  color: #e75d74;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-}
-
-.top-bar h2 {
-  margin: 3px 0 0;
-  font-size: 21px;
-  font-weight: 800;
 }
 
 .help-btn {

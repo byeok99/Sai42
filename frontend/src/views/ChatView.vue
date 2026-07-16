@@ -6,7 +6,9 @@ import BaseCard from '@/components/common/BaseCard.vue'
 import BaseButton from '@/components/common/BaseButton.vue'
 import BaseBadge from '@/components/common/BaseBadge.vue'
 import LeafletMap from '@/components/map/LeafletMap.vue'
+import PageHeader from '@/components/common/PageHeader.vue'
 import { formatDistrict } from '@/utils/district'
+import type { WeatherCondition } from '@/types/api/course'
 
 const store = useDateStore()
 const router = useRouter()
@@ -29,6 +31,14 @@ const displayedPlaces = computed(() =>
 const displayedCoords = computed(() =>
   hasCourseDraft.value ? store.course.coords : nearbyPreviewCoords,
 )
+const displayedWeather = computed(() => store.course.weather ?? store.todayWeather)
+
+function weatherEmoji(condition: WeatherCondition | null) {
+  if (condition === 'RAIN' || condition === 'LIGHT_RAIN' || condition === 'RAIN_SNOW') return '🌦️'
+  if (condition === 'SNOW') return '❄️'
+  if (condition === 'CLOUDY' || condition === 'OVERCAST') return '⛅'
+  return '☀️'
+}
 
 function handleLogout() {
   store.logout()
@@ -75,7 +85,7 @@ function goToCurrentDate() {
 }
 
 onMounted(async () => {
-  await store.loadCurrentCourse()
+  await Promise.all([store.loadCurrentCourse(), store.loadTodayWeather()])
   if (!store.activeCourse) store.fetchChatSession()
   scrollToBottom()
 })
@@ -83,11 +93,7 @@ onMounted(async () => {
 
 <template>
   <div class="chat-view">
-    <header class="top-bar">
-      <div>
-        <p class="section-label">AI DATE MAKER</p>
-        <h2>사이봇과 코스 만들기</h2>
-      </div>
+    <PageHeader eyebrow="AI DATE MAKER" title="사이봇과 코스 만들기">
       <div class="profile-wrapper">
         <button class="profile-chip" @click="showProfileMenu = !showProfileMenu">
           💞 {{ store.name || '우리 취향' }}
@@ -99,26 +105,46 @@ onMounted(async () => {
       </div>
       <!-- click outside to close menu -->
       <div v-if="showProfileMenu" class="menu-overlay" @click="showProfileMenu = false"></div>
-    </header>
+    </PageHeader>
 
     <div class="scroll-area">
       <!-- Weather Card -->
-      <BaseCard class="weather-card" v-if="store.course.weather">
+      <BaseCard v-if="displayedWeather" class="weather-card">
         <div class="weather-left">
-          <span class="emoji">{{ store.course.weather.condition === 'RAIN' || store.course.weather.condition === 'LIGHT_RAIN' ? '🌦️' : '☀️' }}</span>
+          <span class="emoji">{{ weatherEmoji(displayedWeather.condition) }}</span>
           <div>
-            <strong>{{ formatDistrict(store.course.weather.district) || '대전' }} {{ store.course.weather.temperatureMin }}°C</strong>
-            <p>{{ store.course.weather.summary || '날씨 정보가 업데이트되었습니다' }}</p>
+            <strong>
+              {{
+                displayedWeather.district === 'ANY'
+                  ? '대전'
+                  : formatDistrict(displayedWeather.district)
+              }}
+              {{ displayedWeather.temperatureMin ?? '-' }}°C
+              <template v-if="displayedWeather.temperatureMax !== null">
+                · {{ displayedWeather.temperatureMax }}°C
+              </template>
+            </strong>
+            <p>{{ displayedWeather.summary || '오늘의 대전 날씨를 확인했어요.' }}</p>
           </div>
         </div>
-        <BaseBadge variant="default">{{ store.course.weather.recommendation?.message || '실내 70%' }}</BaseBadge>
+        <BaseBadge variant="default">
+          강수 {{ displayedWeather.precipitationProbability ?? 0 }}%
+        </BaseBadge>
       </BaseCard>
       <BaseCard class="weather-card" v-else>
         <div class="weather-left">
           <span class="emoji">🌦️</span>
           <div>
-            <strong>대전 날씨 불러오는 중...</strong>
-            <p>조금만 기다려주세요</p>
+            <strong>{{
+              store.weatherLoading ? '대전 날씨 불러오는 중...' : '날씨를 준비하지 못했어요'
+            }}</strong>
+            <p>
+              {{
+                store.weatherLoading
+                  ? '오늘의 데이트 날씨를 확인하고 있어요.'
+                  : '코스 생성 시 다시 확인할게요.'
+              }}
+            </p>
           </div>
         </div>
       </BaseCard>
@@ -136,6 +162,19 @@ onMounted(async () => {
           <LeafletMap :coords="displayedCoords" :places="displayedPlaces" static />
         </div>
       </BaseCard>
+
+      <section v-if="!hasCourseDraft" class="planning-guide" aria-label="사이봇 코스 생성 과정">
+        <div class="guide-copy">
+          <span>HOW IT WORKS</span>
+          <strong>둘의 취향이 코스가 되는 과정</strong>
+          <p>간단한 선택만 하면 날씨와 이동 동선까지 사이봇이 정리해요.</p>
+        </div>
+        <div class="guide-steps">
+          <div><b>01</b><span>취향 선택</span><small>분위기와 이동 방식</small></div>
+          <div><b>02</b><span>AI 큐레이션</span><small>날씨·거리까지 반영</small></div>
+          <div><b>03</b><span>함께 출발</span><small>마음에 들면 바로 시작</small></div>
+        </div>
+      </section>
 
       <!-- Course Summary Card -->
       <BaseCard v-if="hasCourseDraft" class="course-card">
@@ -168,10 +207,15 @@ onMounted(async () => {
       </BaseCard>
 
       <BaseCard v-else class="empty-course-card">
-        <div class="speech-bubble">코스를 생성해보세요!!</div>
-        <h3>사이봇이 두 분의 취향에 맞는 데이트 코스를 만들어드릴게요.</h3>
-        <p>가까운 세 장소를 미리 둘러보며, 어떤 하루를 보내고 싶은지 알려주세요.</p>
-        <BaseButton variant="primary" full @click="startCourseSetup">코스 만들기</BaseButton>
+        <div class="empty-course-icon">42</div>
+        <div class="empty-course-copy">
+          <span>READY FOR YOUR DATE</span>
+          <h3>오늘의 둘만을 위한 코스를 시작해 볼까요?</h3>
+          <p>약 1분이면 취향을 반영한 세 장소와 이동 순서를 준비해 드려요.</p>
+        </div>
+        <BaseButton variant="primary" full @click="startCourseSetup">
+          사이봇과 코스 만들기 →
+        </BaseButton>
       </BaseCard>
 
       <!-- Chatbox Card -->
@@ -244,30 +288,7 @@ onMounted(async () => {
   height: 100%;
   display: flex;
   flex-direction: column;
-}
-
-.top-bar {
-  height: 72px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 14px 18px 10px;
-  background: var(--cream);
-  border-bottom: 1px solid var(--line);
-}
-
-.section-label {
-  margin: 0;
-  color: #e75d74;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-}
-
-.top-bar h2 {
-  margin: 3px 0 0;
-  font-size: 21px;
-  font-weight: 800;
+  background: linear-gradient(180deg, #fffaf7 0%, #fff7f9 58%, #f8f4ff 100%);
 }
 
 .profile-chip {
@@ -294,7 +315,7 @@ onMounted(async () => {
   margin-top: 8px;
   background: #fff;
   border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -334,7 +355,11 @@ onMounted(async () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: linear-gradient(135deg, #fff0be, #ffe0e5);
+  border: 1px solid rgba(245, 207, 171, 0.62);
+  background:
+    radial-gradient(circle at 90% 10%, rgba(255, 255, 255, 0.72), transparent 24%),
+    linear-gradient(135deg, #fff1c9, #ffe1e8 68%, #eee6ff);
+  box-shadow: 0 12px 26px rgba(110, 73, 82, 0.1);
 }
 
 .weather-left {
@@ -399,7 +424,9 @@ onMounted(async () => {
 
 .map-card {
   margin-top: 11px;
-  padding: 13px;
+  padding: 15px;
+  border: 1px solid rgba(225, 218, 228, 0.8);
+  box-shadow: 0 12px 26px rgba(88, 65, 77, 0.09);
 }
 
 .map-row {
@@ -498,43 +525,123 @@ onMounted(async () => {
 }
 
 .empty-course-card {
-  margin-top: 11px;
-  padding: 16px;
-  text-align: center;
+  position: relative;
+  display: grid;
+  grid-template-columns: 50px 1fr;
+  gap: 13px;
+  margin-top: 12px;
+  padding: 17px;
+  overflow: hidden;
+  border: 1px solid rgba(244, 192, 207, 0.72);
+  background:
+    radial-gradient(circle at 95% 5%, rgba(255, 255, 255, 0.72), transparent 25%),
+    linear-gradient(135deg, #fff0f4, #f2eaff);
+  box-shadow: 0 14px 28px rgba(122, 78, 101, 0.12);
 }
 
 .empty-course-card h3 {
-  margin: 13px 0 6px;
-  font-size: 14px;
+  margin: 3px 0 6px;
+  font-size: 15px;
+  line-height: 1.35;
 }
 
 .empty-course-card p {
-  margin: 0 0 14px;
+  margin: 0;
   color: var(--muted);
   font-size: 10px;
   line-height: 1.55;
 }
 
-.speech-bubble {
-  position: relative;
-  display: inline-block;
-  padding: 9px 12px;
-  border-radius: 14px;
-  background: #fff0f3;
-  color: #d85369;
-  font-size: 11px;
-  font-weight: 800;
+.empty-course-card :deep(.btn) {
+  grid-column: 1 / -1;
+  margin-top: 2px;
 }
 
-.speech-bubble::after {
-  position: absolute;
-  bottom: -6px;
-  left: 50%;
-  width: 11px;
-  height: 11px;
-  background: #fff0f3;
-  content: '';
-  transform: translateX(-50%) rotate(45deg);
+.empty-course-icon {
+  width: 50px;
+  height: 50px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px 18px 18px 6px;
+  background: linear-gradient(145deg, var(--pink), #9d83db);
+  box-shadow: 0 10px 20px rgba(210, 91, 132, 0.22);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.empty-course-copy > span {
+  color: #c06078;
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.planning-guide {
+  margin-top: 12px;
+  padding: 16px;
+  border: 1px solid rgba(228, 219, 238, 0.9);
+  border-radius: 21px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 10px 24px rgba(88, 65, 77, 0.07);
+}
+
+.guide-copy > span {
+  color: #aa7391;
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+}
+
+.guide-copy strong {
+  display: block;
+  margin-top: 3px;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.guide-copy p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.guide-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 13px;
+}
+
+.guide-steps div {
+  min-width: 0;
+  padding: 11px 8px;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #fff6f7, #f7f2ff);
+  text-align: center;
+}
+
+.guide-steps b {
+  display: block;
+  color: #d6677e;
+  font-size: 8px;
+}
+
+.guide-steps span {
+  display: block;
+  margin: 4px 0 3px;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.guide-steps small {
+  display: block;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 7px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .course-row {
@@ -732,7 +839,7 @@ onMounted(async () => {
   z-index: 20;
   left: 0;
   right: 0;
-  bottom: 74px;
+  bottom: 76px;
   padding: 10px 15px 13px;
   background: linear-gradient(transparent, rgba(255, 250, 245, 0.97) 38%);
 }

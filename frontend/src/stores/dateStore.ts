@@ -6,6 +6,7 @@ import { courseService } from '@/services/courseService'
 import { historyService } from '@/services/historyService'
 import { identityService } from '@/services/identityService'
 import { rankingService } from '@/services/rankingService'
+import { weatherService } from '@/services/weatherService'
 import type { AuthenticatedApiHeaders, PageMetaDto } from '@/types/api/common'
 import type {
   CommunityPostDetailDto,
@@ -67,6 +68,17 @@ function defaultCourseSchedule() {
   return { date: date.toISOString().slice(0, 10), startTime: '19:00' }
 }
 
+function todayInSeoul() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date())
+  const value = (type: string) => parts.find((part) => part.type === type)?.value ?? ''
+  return `${value('year')}-${value('month')}-${value('day')}`
+}
+
 export const useDateStore = defineStore('dateStore', () => {
   const authMode = ref<'enter' | 'register'>('enter')
   const name = ref('')
@@ -107,6 +119,8 @@ export const useDateStore = defineStore('dateStore', () => {
   })
   const messages = ref<Array<{ role: 'bot' | 'user'; content: string }>>([])
   const activeCourse = ref<DateCourseDto | null>(null)
+  const todayWeather = ref<WeatherSummaryDto | null>(null)
+  const weatherLoading = ref(false)
   const rankings = ref<CommunityPostSummaryDto[]>([])
   const rankingMeta = ref<PageMetaDto | null>(null)
   const masters = ref<DateMasterDto[]>([])
@@ -258,6 +272,7 @@ export const useDateStore = defineStore('dateStore', () => {
     draftId.value = null
     draftVersion.value = null
     course.value = { title: '', places: [], coords: [], weather: null }
+    todayWeather.value = null
     messages.value = []
     activeCourse.value = null
     authMode.value = 'enter'
@@ -450,6 +465,23 @@ export const useDateStore = defineStore('dateStore', () => {
         triggerToast(error.message)
     }
   }
+  async function loadTodayWeather() {
+    if (weatherLoading.value) return
+    weatherLoading.value = true
+    try {
+      const headers = profileId.value && password.value ? authHeaders() : undefined
+      todayWeather.value = (
+        await weatherService.getWeather(
+          { date: todayInSeoul(), district: 'ANY', timeSlot: 'FULL_DAY' },
+          headers,
+        )
+      ).data
+    } catch {
+      todayWeather.value = null
+    } finally {
+      weatherLoading.value = false
+    }
+  }
   async function togglePlaceLike(coursePlaceId: string, hearted: boolean) {
     try {
       const response = hearted
@@ -563,9 +595,14 @@ export const useDateStore = defineStore('dateStore', () => {
       triggerToast(error instanceof Error ? error.message : '코스 경로를 불러오지 못했습니다.')
     }
   }
-  async function loadHistory() {
+  async function loadHistory(params?: {
+    year?: number
+    month?: number
+    page?: number
+    size?: number
+  }) {
     try {
-      history.value = (await historyService.listMyDateCourses(authHeaders())).data ?? []
+      history.value = (await historyService.listMyDateCourses(authHeaders(), params)).data ?? []
     } catch (error) {
       if (error instanceof Error && !error.message.includes('다시 로그인'))
         triggerToast(error.message)
@@ -600,6 +637,8 @@ export const useDateStore = defineStore('dateStore', () => {
     course,
     messages,
     activeCourse,
+    todayWeather,
+    weatherLoading,
     rankings,
     rankingMeta,
     masters,
@@ -618,6 +657,7 @@ export const useDateStore = defineStore('dateStore', () => {
     sendQuickAction,
     decideCourse,
     loadCurrentCourse,
+    loadTodayWeather,
     togglePlaceLike,
     nextPlace,
     submitReview,

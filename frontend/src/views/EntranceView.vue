@@ -22,7 +22,8 @@ function changeAuthMode(mode: 'enter' | 'register') {
 async function loadNicknameSuggestions() {
   loadingSuggestions.value = true
   try {
-    nicknameSuggestions.value = (await identityService.getNicknameSuggestions()).data?.suggestions.slice(0, 3) ?? []
+    nicknameSuggestions.value =
+      (await identityService.getNicknameSuggestions()).data?.suggestions.slice(0, 3) ?? []
   } catch {
     nicknameSuggestions.value = []
   } finally {
@@ -55,93 +56,103 @@ async function handleAuth() {
 
 <template>
   <div class="entrance-container">
-    <div class="brand">
-      <div class="logo">42</div>
-      <small>우리 사이의 데이트 코스</small>
-      <h1>사이<span>42</span></h1>
-      <p>오늘의 둘을 위한,<br />조금 더 다정한 대전 데이트</p>
-    </div>
-
-    <BaseCard class="login-card">
-      <div class="seg">
-        <button :class="{ active: store.authMode === 'enter' }" @click="changeAuthMode('enter')">
-          입장하기
-        </button>
-        <button
-          :class="{ active: store.authMode === 'register' }"
-          @click="changeAuthMode('register')"
-        >
-          처음 등록
-        </button>
+    <div class="entrance-content">
+      <div class="brand">
+        <div class="logo">42</div>
+        <small>우리 사이의 데이트 코스</small>
+        <h1>사이<span>42</span></h1>
+        <p>오늘의 둘을 위한,<br />조금 더 다정한 대전 데이트</p>
       </div>
 
-      <BaseInput
-        id="name"
-        v-model="nameInput"
-        label="커플 닉네임"
-        placeholder="예: 복숭아와호두"
-        :maxlength="14"
-      />
-
-      <div v-if="store.authMode === 'register'" class="nickname-suggestions">
-        <p>이런 닉네임은 어때요? 😊</p>
-        <div v-if="loadingSuggestions" class="suggestion-loading">추천을 불러오는 중이에요…</div>
-        <div v-else class="suggestion-list">
+      <BaseCard class="login-card">
+        <div class="seg">
+          <button :class="{ active: store.authMode === 'enter' }" @click="changeAuthMode('enter')">
+            입장하기
+          </button>
           <button
-            v-for="nickname in nicknameSuggestions"
-            :key="nickname"
-            type="button"
-            :class="{ selected: nameInput === nickname }"
-            @click="selectNickname(nickname)"
+            :class="{ active: store.authMode === 'register' }"
+            @click="changeAuthMode('register')"
           >
-            {{ nickname }}
+            처음 등록
           </button>
         </div>
-      </div>
 
-      <BaseInput
-        id="pw"
-        v-model="pwInput"
-        type="password"
-        label="우리만의 비밀번호"
-        placeholder="숫자 4자리"
-        :maxlength="4"
-        inputmode="numeric"
-      />
+        <BaseInput
+          id="name"
+          v-model="nameInput"
+          label="커플 닉네임"
+          placeholder="예: 복숭아와호두"
+          :maxlength="14"
+        />
 
-      <BaseButton variant="primary" full @click="handleAuth">
-        {{ store.authMode === 'register' ? '우리 사이42 등록하기 →' : '우리 데이트 보러 가기 →' }}
-      </BaseButton>
+        <div v-if="store.authMode === 'register'" class="nickname-suggestions">
+          <p>이런 닉네임은 어때요? 😊</p>
+          <div v-if="loadingSuggestions" class="suggestion-loading">추천을 불러오는 중이에요…</div>
+          <div v-else class="suggestion-list">
+            <button
+              v-for="nickname in nicknameSuggestions"
+              :key="nickname"
+              type="button"
+              :class="{ selected: nameInput === nickname }"
+              @click="selectNickname(nickname)"
+            >
+              {{ nickname }}
+            </button>
+          </div>
+        </div>
 
-      <p class="help">
-        {{
-          store.authMode === 'register'
-            ? '새 닉네임과 숫자 4자리 비밀번호를 등록해요.'
-            : '등록한 닉네임과 비밀번호로 입장해요.'
-        }}
-      </p>
-    </BaseCard>
+        <BaseInput
+          id="pw"
+          v-model="pwInput"
+          type="password"
+          label="우리만의 비밀번호"
+          placeholder="숫자 4자리"
+          :maxlength="4"
+          inputmode="numeric"
+        />
 
-    <p class="demo-help">와이어프레임 데모 계정: 복숭아와호두 / 0420</p>
+        <BaseButton variant="primary" full @click="handleAuth">
+          {{ store.authMode === 'register' ? '우리 사이42 등록하기 →' : '우리 데이트 보러 가기 →' }}
+        </BaseButton>
+
+        <p class="help">
+          {{
+            store.authMode === 'register'
+              ? '새 닉네임과 숫자 4자리 비밀번호를 등록해요.'
+              : '등록한 닉네임과 비밀번호로 입장해요.'
+          }}
+        </p>
+      </BaseCard>
+
+      <p class="demo-help">와이어프레임 데모 계정: 복숭아와호두 / 0420</p>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .entrance-container {
-  padding: 43px 22px 28px;
-  overflow-y: auto;
   height: 100%;
+  display: flex;
+  overflow-y: auto;
+  padding: 0 22px;
   background: linear-gradient(150deg, #fff0dc, #fff8f8 45%, #ece6ff);
+}
+
+.entrance-content {
+  width: 100%;
+  max-width: 480px;
+  margin: auto;
+  padding: 14px 0;
 }
 
 .brand {
   text-align: center;
-  margin: 22px 0 30px;
+  margin: 0 0 20px;
 }
 
 .logo {
-  width: 74px;
-  height: 74px;
+  width: 66px;
+  height: 66px;
   margin: auto;
   display: grid;
   place-items: center;
@@ -149,14 +160,14 @@ async function handleAuth() {
   transform: rotate(-6deg);
   background: linear-gradient(145deg, var(--pink), var(--pink-gradient-end));
   color: #fff;
-  font-size: 28px;
+  font-size: 25px;
   font-weight: 900;
   box-shadow: 0 14px 26px rgba(243, 93, 117, 0.26);
 }
 
 .brand small {
   display: block;
-  margin-top: 16px;
+  margin-top: 12px;
   color: #e75d74;
   font-weight: 800;
   font-size: 10px;
@@ -165,7 +176,7 @@ async function handleAuth() {
 
 .brand h1 {
   margin: 3px 0 7px;
-  font-size: 47px;
+  font-size: 43px;
   letter-spacing: -3px;
   font-weight: 900;
 }
@@ -182,7 +193,7 @@ async function handleAuth() {
 }
 
 .login-card {
-  padding: 19px;
+  padding: 17px;
 }
 
 .seg {
@@ -260,6 +271,6 @@ async function handleAuth() {
   color: var(--muted);
   font-size: 10px;
   line-height: 1.5;
-  margin-top: 20px;
+  margin-top: 12px;
 }
 </style>

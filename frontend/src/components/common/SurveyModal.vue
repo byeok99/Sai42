@@ -193,13 +193,7 @@ async function handleNextSurveyStep() {
                 <span>DATE CALENDAR</span>
                 <strong>{{ calendarMonthLabel }}</strong>
               </div>
-              <button
-                type="button"
-                aria-label="다음 달"
-                @click="changeCalendarMonth(1)"
-              >
-                ›
-              </button>
+              <button type="button" aria-label="다음 달" @click="changeCalendarMonth(1)">›</button>
             </div>
             <div class="calendar-weekdays" aria-hidden="true">
               <span v-for="weekday in weekdays" :key="weekday">{{ weekday }}</span>
@@ -343,7 +337,7 @@ async function handleNextSurveyStep() {
 
 .sheet-notch {
   position: relative;
-  min-height: 34px;
+  min-height: 40px;
 }
 
 .handle {
@@ -356,7 +350,7 @@ async function handleNextSurveyStep() {
 
 .close-btn {
   position: absolute;
-  top: -7px;
+  top: 1px;
   right: -4px;
   width: 28px;
   height: 28px;

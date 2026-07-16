@@ -10,6 +10,7 @@ import BaseButton from '@/components/common/BaseButton.vue'
 import BaseBadge from '@/components/common/BaseBadge.vue'
 import LeafletMap from '@/components/map/LeafletMap.vue'
 import PageHeader from '@/components/common/PageHeader.vue'
+import CoupleRouletteModal from '@/components/game/CoupleRouletteModal.vue'
 import { formatDistrict } from '@/utils/district'
 import type { WeatherCondition } from '@/types/api/course'
 
@@ -20,6 +21,7 @@ const chatInput = ref('')
 const messagesContainer = ref<HTMLDivElement | null>(null)
 const showMapModal = ref(false)
 const showProfileMenu = ref(false)
+const showRouletteModal = ref(false)
 const activePromoSlide = ref(0)
 let promoSlideTimer: number | null = null
 
@@ -274,6 +276,27 @@ watch(hasCourseDraft, (hasDraft) => {
         </div>
       </section>
 
+      <button
+        v-if="!hasCourseDraft"
+        class="roulette-banner"
+        type="button"
+        aria-label="커플 룰렛 게임 시작"
+        @click="showRouletteModal = true"
+      >
+        <div class="roulette-banner-copy">
+          <span><i></i> COUPLE PLAY</span>
+          <strong>오늘의 선택,<br />룰렛에게 맡겨볼까요?</strong>
+          <small>두 사람의 이름만 넣으면 바로 시작할 수 있어요.</small>
+          <em>룰렛 돌리기 <b>→</b></em>
+        </div>
+        <div class="roulette-banner-art" aria-hidden="true">
+          <div class="mini-pointer"></div>
+          <div class="mini-wheel"><span>42</span></div>
+          <i class="spark spark-one">✦</i>
+          <i class="spark spark-two">♥</i>
+        </div>
+      </button>
+
       <!-- Course Summary Card -->
       <BaseCard v-if="hasCourseDraft" class="course-card">
         <div class="course-row">
@@ -386,11 +409,14 @@ watch(hasCourseDraft, (hasDraft) => {
         </div>
       </div>
     </div>
+
+    <CoupleRouletteModal v-if="showRouletteModal" @close="showRouletteModal = false" />
   </div>
 </template>
 
 <style scoped>
 .chat-view {
+  position: relative;
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -398,6 +424,8 @@ watch(hasCourseDraft, (hasDraft) => {
 }
 
 .profile-chip {
+  max-width: 170px;
+  overflow: hidden;
   padding: 8px 12px;
   border-radius: 14px;
   background: #ffe3e7;
@@ -407,7 +435,9 @@ watch(hasCourseDraft, (hasDraft) => {
   border: 0;
   cursor: pointer;
   position: relative;
-  z-index: 12;
+  z-index: 22;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .profile-wrapper {
@@ -421,12 +451,13 @@ watch(hasCourseDraft, (hasDraft) => {
   margin-top: 8px;
   background: #fff;
   border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(237, 220, 225, 0.9);
+  box-shadow: 0 12px 28px rgba(83, 54, 63, 0.18);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  z-index: 12;
-  min-width: 100px;
+  z-index: 22;
+  min-width: 128px;
 }
 
 .profile-menu button {
@@ -452,7 +483,14 @@ watch(hasCourseDraft, (hasDraft) => {
 .menu-overlay {
   position: fixed;
   inset: 0;
-  z-index: 11;
+  z-index: 21;
+}
+
+@media (max-width: 380px) {
+  .profile-chip {
+    max-width: 126px;
+    padding: 8px 9px;
+  }
 }
 
 .weather-card {
@@ -893,6 +931,210 @@ watch(hasCourseDraft, (hasDraft) => {
   font-size: 7px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.roulette-banner {
+  position: relative;
+  width: 100%;
+  min-height: 176px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 126px;
+  align-items: center;
+  margin-top: 12px;
+  padding: 18px 13px 18px 18px;
+  overflow: hidden;
+  border: 1px solid rgba(237, 174, 194, 0.74);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 93% 6%, rgba(255, 255, 255, 0.74), transparent 22%),
+    linear-gradient(135deg, #ffe8ee 0%, #f7eaff 56%, #ebe6ff 100%);
+  box-shadow: 0 15px 30px rgba(125, 78, 109, 0.14);
+  color: var(--ink);
+  text-align: left;
+  isolation: isolate;
+}
+
+.roulette-banner::before {
+  position: absolute;
+  z-index: -1;
+  right: -32px;
+  bottom: -78px;
+  width: 205px;
+  height: 205px;
+  border: 30px solid rgba(255, 255, 255, 0.31);
+  border-radius: 50%;
+  content: '';
+}
+
+.roulette-banner-copy {
+  position: relative;
+  z-index: 2;
+  min-width: 0;
+}
+
+.roulette-banner-copy > span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #b15f79;
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+}
+
+.roulette-banner-copy > span i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #e55f7b;
+  box-shadow: 0 0 0 4px rgba(229, 95, 123, 0.11);
+}
+
+.roulette-banner-copy strong {
+  display: block;
+  margin-top: 8px;
+  color: #4f3c44;
+  font-size: 17px;
+  font-weight: 900;
+  line-height: 1.34;
+  letter-spacing: -0.04em;
+}
+
+.roulette-banner-copy small {
+  display: block;
+  max-width: 190px;
+  margin-top: 6px;
+  color: #856f77;
+  font-size: 8px;
+  line-height: 1.5;
+}
+
+.roulette-banner-copy em {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 5px 13px rgba(110, 67, 86, 0.09);
+  color: #ca5570;
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.roulette-banner-copy em b {
+  font-size: 11px;
+}
+
+.roulette-banner-art {
+  position: relative;
+  z-index: 2;
+  width: 126px;
+  height: 138px;
+  display: grid;
+  place-items: center;
+}
+
+.mini-wheel {
+  width: 112px;
+  height: 112px;
+  display: grid;
+  place-items: center;
+  border: 7px solid rgba(255, 255, 255, 0.92);
+  border-radius: 50%;
+  background: conic-gradient(
+    from -22.5deg,
+    #ec7790 0 45deg,
+    #9e82d1 45deg 90deg,
+    #f3a083 90deg 135deg,
+    #8b79be 135deg 180deg,
+    #ec7790 180deg 225deg,
+    #9e82d1 225deg 270deg,
+    #f3a083 270deg 315deg,
+    #8b79be 315deg 360deg
+  );
+  box-shadow:
+    0 13px 25px rgba(89, 54, 79, 0.22),
+    0 0 0 1px rgba(208, 175, 189, 0.58);
+  transition: transform 0.5s ease;
+}
+
+.roulette-banner:hover .mini-wheel {
+  transform: rotate(22deg);
+}
+
+.mini-wheel span {
+  width: 37px;
+  height: 37px;
+  display: grid;
+  place-items: center;
+  border: 4px solid rgba(255, 255, 255, 0.92);
+  border-radius: 50%;
+  background: #fff7f8;
+  box-shadow: 0 4px 12px rgba(83, 47, 62, 0.2);
+  color: #d85c76;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.mini-pointer {
+  position: absolute;
+  z-index: 3;
+  top: 3px;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-top: 18px solid #cf526d;
+  border-right: 10px solid transparent;
+  border-left: 10px solid transparent;
+  filter: drop-shadow(0 4px 4px rgba(70, 41, 51, 0.22));
+  transform: translateX(-50%);
+}
+
+.spark {
+  position: absolute;
+  color: #fff;
+  font-style: normal;
+  text-shadow: 0 4px 8px rgba(106, 65, 82, 0.18);
+}
+
+.spark-one {
+  top: 16px;
+  right: -1px;
+  font-size: 14px;
+}
+
+.spark-two {
+  right: 2px;
+  bottom: 11px;
+  color: #e57289;
+  font-size: 11px;
+}
+
+@media (max-width: 360px) {
+  .roulette-banner {
+    grid-template-columns: minmax(0, 1fr) 98px;
+    padding: 16px 10px 16px 15px;
+  }
+
+  .roulette-banner-copy strong {
+    font-size: 15px;
+  }
+
+  .roulette-banner-copy small {
+    max-width: 160px;
+  }
+
+  .roulette-banner-art {
+    width: 98px;
+  }
+
+  .mini-wheel {
+    width: 91px;
+    height: 91px;
+  }
 }
 
 .course-row {

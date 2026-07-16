@@ -1,5 +1,4 @@
 <script setup lang="ts">
-
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDateStore } from '@/stores/dateStore'
@@ -71,6 +70,7 @@ const scrollArea = ref<HTMLElement | null>(null)
 const pullDistance = ref(0)
 const pullStartY = ref<number | null>(null)
 const refreshing = ref(false)
+const showMapModal = ref(false)
 const liveSlider = ref<HTMLDivElement | null>(null)
 const activeLiveSlide = ref(0)
 let liveSlideTimer: number | null = null
@@ -159,11 +159,16 @@ async function startCourse(postId: string) {
 }
 
 function toggleRoute(postId: string) {
+  showMapModal.value = false
   if (store.selectedCommunityCourse?.postId === postId) {
     store.selectedCommunityCourse = null
   } else {
     void store.loadCommunityCourse(postId)
   }
+}
+
+function openExpandedMap() {
+  if (store.selectedCommunityCourse) showMapModal.value = true
 }
 
 async function refreshRankings() {
@@ -214,10 +219,7 @@ function movePull(event: TouchEvent) {
   }
 
   if (event.cancelable) event.preventDefault()
-  pullDistance.value = Math.min(
-    78,
-    distance,
-  )
+  pullDistance.value = Math.min(78, distance)
 }
 
 function endPull() {
@@ -227,7 +229,6 @@ function endPull() {
   if (shouldRefresh) void refreshRankings()
 }
 
-
 function selectRankTab(tab: 'all' | 'masters') {
   if (rankTab.value === tab) return
   rankTab.value = tab
@@ -235,7 +236,6 @@ function selectRankTab(tab: 'all' | 'masters') {
   if (tab === 'masters') void store.loadMasters()
   else void store.loadRankings(currentPage.value)
 }
-
 </script>
 
 <template>
@@ -318,7 +318,9 @@ function selectRankTab(tab: 'all' | 'masters') {
 
       <!-- Tabs -->
       <div class="tabs">
-        <button :class="{ active: rankTab === 'all' }" @click="selectRankTab('all')">인기 코스</button>
+        <button :class="{ active: rankTab === 'all' }" @click="selectRankTab('all')">
+          인기 코스
+        </button>
         <button :class="{ active: rankTab === 'masters' }" @click="selectRankTab('masters')">
           마스터 랭킹
         </button>
@@ -410,6 +412,9 @@ function selectRankTab(tab: 'all' | 'masters') {
               :images="store.selectedCommunityCourse.places.map((place) => place.place.imageUrl)"
               static
             />
+            <button class="map-zoom-btn" type="button" @click="openExpandedMap">
+              지도 크게보기
+            </button>
           </div>
           <div class="actions">
             <button class="like-btn" @click="handleLike(item.postId, item.likedByMe)">
@@ -491,6 +496,37 @@ function selectRankTab(tab: 'all' | 'masters') {
           다음
         </button>
       </nav>
+    </div>
+
+    <div
+      v-if="showMapModal && store.selectedCommunityCourse"
+      class="map-modal-overlay"
+      @click.self="showMapModal = false"
+    >
+      <div class="map-modal" role="dialog" aria-modal="true" aria-label="데이트 코스 전체 지도">
+        <div class="map-modal-header">
+          <div>
+            <span>COURSE MAP</span>
+            <h3>{{ store.selectedCommunityCourse.courseTitle }}</h3>
+          </div>
+          <button type="button" aria-label="지도 닫기" @click="showMapModal = false">
+            &times;
+          </button>
+        </div>
+        <div class="map-modal-content">
+          <LeafletMap
+            :coords="
+              store.selectedCommunityCourse.places.flatMap((place) =>
+                place.place.latitude !== null && place.place.longitude !== null
+                  ? [[place.place.latitude, place.place.longitude]]
+                  : [],
+              )
+            "
+            :places="store.selectedCommunityCourse.places.map((place) => place.place.name)"
+            :images="store.selectedCommunityCourse.places.map((place) => place.place.imageUrl)"
+          />
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -1186,6 +1222,7 @@ function selectRankTab(tab: 'all' | 'masters') {
 }
 
 .rank-info {
+  min-width: 0;
   flex: 1;
 }
 
@@ -1199,6 +1236,7 @@ function selectRankTab(tab: 'all' | 'masters') {
 .theme-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
 }
 
@@ -1269,10 +1307,103 @@ function selectRankTab(tab: 'all' | 'masters') {
   font-weight: 800;
 }
 .route-preview {
+  position: relative;
   height: 180px;
   margin-top: 8px;
   overflow: hidden;
   border-radius: 13px;
+}
+
+.map-zoom-btn {
+  position: absolute;
+  z-index: 10;
+  top: 10px;
+  right: 10px;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(237, 220, 225, 0.9);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 5px 14px rgba(74, 52, 59, 0.16);
+  color: #d6536b;
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.map-modal-overlay {
+  position: absolute;
+  z-index: 120;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(53, 42, 45, 0.48);
+  backdrop-filter: blur(4px);
+}
+
+.map-modal {
+  width: 100%;
+  max-width: 460px;
+  height: min(72vh, 620px);
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 24px;
+  background: #fffaf8;
+  box-shadow: 0 24px 60px rgba(58, 38, 45, 0.28);
+}
+
+.map-modal-header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.map-modal-header span {
+  color: #ca6077;
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+}
+
+.map-modal-header h3 {
+  margin: 3px 0 0;
+  font-size: 15px;
+}
+
+.map-modal-header button {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: 12px;
+  background: #f5ecee;
+  color: #8d777d;
+  font-size: 23px;
+}
+
+.map-modal-content {
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 17px;
+}
+
+@media (max-width: 380px) {
+  .map-modal-overlay {
+    padding: 10px;
+  }
+
+  .map-modal {
+    height: 78dvh;
+    padding: 12px;
+    border-radius: 20px;
+  }
 }
 
 .actions button {

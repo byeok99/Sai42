@@ -37,7 +37,7 @@ const showNav = computed(() => route.name !== 'entrance' && route.name !== undef
 
       <div v-if="store.loading && !store.chatLoading" class="request-overlay" aria-live="polite">
         <div class="request-loader"><span>42</span><i>✨</i><b>💞</b></div>
-        <strong>사이봇이 정성껏 준비하고 있어요</strong>
+        <strong>42봇이 정성껏 준비하고 있어요</strong>
         <p>LLM 기반 추천은 조금 시간이 걸릴 수 있어요.<br />느긋하게 기다려 주세요 ☕</p>
       </div>
 

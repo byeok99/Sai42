@@ -41,8 +41,8 @@ const transportationByOption: Record<string, CreateChatSessionRequestDto['transp
   '✨ 상관없어요': 'FLEXIBLE',
 }
 const densityByOption: Record<string, CreateChatSessionRequestDto['scheduleDensity']> = {
-  '🌿 여유롭게': 'RELAXED',
-  '☁️ 널널하게': 'NORMAL',
+  '⚡ 타이트하게': 'TIGHT',
+  '☁️ 널널하게': 'RELAXED',
 }
 
 function defaultCourseSchedule() {

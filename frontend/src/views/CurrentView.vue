@@ -102,7 +102,7 @@ onMounted(() => {
           </div>
           <span class="empty-kicker">YOUR NEXT DATE</span>
           <h3>오늘의 둘을 위한 코스를<br />아직 준비하지 않았어요</h3>
-          <p>날씨와 취향, 이동 방법을 알려주면 사이봇이 세 장소를 자연스럽게 이어드려요.</p>
+          <p>날씨와 취향, 이동 방법을 알려주면 42봇이 세 장소를 자연스럽게 이어드려요.</p>
           <BaseButton variant="primary" full @click="openCourseSurvey">
             오늘의 코스 만들기 →
           </BaseButton>

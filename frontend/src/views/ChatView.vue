@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, nextTick } from 'vue'
+import { computed, ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDateStore } from '@/stores/dateStore'
+import arboretumDateImage from '@/assets/date-promos/arboretum-date.jpg'
+import cafeDateImage from '@/assets/date-promos/cafe-date.jpg'
+import expoNightDateImage from '@/assets/date-promos/expo-night-date.jpg'
 import BaseCard from '@/components/common/BaseCard.vue'
 import BaseButton from '@/components/common/BaseButton.vue'
 import BaseBadge from '@/components/common/BaseBadge.vue'
@@ -17,21 +20,51 @@ const chatInput = ref('')
 const messagesContainer = ref<HTMLDivElement | null>(null)
 const showMapModal = ref(false)
 const showProfileMenu = ref(false)
+const activePromoSlide = ref(0)
+let promoSlideTimer: number | null = null
 
-const nearbyPreviewPlaces = ['한밭수목원', '대전시립미술관', '엑스포다리']
-const nearbyPreviewCoords: [number, number][] = [
-  [36.3675, 127.388],
-  [36.367, 127.387],
-  [36.376, 127.389],
+const promoSlides = [
+  {
+    image: arboretumDateImage,
+    location: '한밭수목원',
+    title: '꽃길을 따라 걷는 오후',
+    description: '천천히 걸으며 둘만의 이야기를 쌓아보세요.',
+  },
+  {
+    image: cafeDateImage,
+    location: '대전 원도심',
+    title: '따뜻한 카페에서 보내는 시간',
+    description: '취향이 닮은 공간과 메뉴를 42봇이 이어드려요.',
+  },
+  {
+    image: expoNightDateImage,
+    location: '엑스포다리',
+    title: '야경으로 완성하는 하루',
+    description: '마지막 순간까지 자연스러운 코스를 만나보세요.',
+  },
 ]
 const hasCourseDraft = computed(() => store.course.places.length > 0)
-const displayedPlaces = computed(() =>
-  hasCourseDraft.value ? store.course.places : nearbyPreviewPlaces,
-)
-const displayedCoords = computed(() =>
-  hasCourseDraft.value ? store.course.coords : nearbyPreviewCoords,
-)
 const displayedWeather = computed(() => store.course.weather ?? store.todayWeather)
+
+function stopPromoSlide() {
+  if (promoSlideTimer !== null) {
+    window.clearInterval(promoSlideTimer)
+    promoSlideTimer = null
+  }
+}
+
+function startPromoSlide() {
+  stopPromoSlide()
+  if (hasCourseDraft.value || promoSlides.length < 2) return
+  promoSlideTimer = window.setInterval(() => {
+    activePromoSlide.value = (activePromoSlide.value + 1) % promoSlides.length
+  }, 4200)
+}
+
+function selectPromoSlide(index: number) {
+  activePromoSlide.value = index
+  startPromoSlide()
+}
 
 function weatherEmoji(condition: WeatherCondition | null) {
   if (condition === 'RAIN' || condition === 'LIGHT_RAIN' || condition === 'RAIN_SNOW') return '🌦️'
@@ -88,13 +121,19 @@ function goToCurrentDate() {
 onMounted(async () => {
   await Promise.all([store.loadCurrentCourse(), store.loadTodayWeather()])
   if (!store.activeCourse) store.fetchChatSession()
+  startPromoSlide()
   scrollToBottom()
+})
+onUnmounted(stopPromoSlide)
+watch(hasCourseDraft, (hasDraft) => {
+  if (hasDraft) stopPromoSlide()
+  else startPromoSlide()
 })
 </script>
 
 <template>
   <div class="chat-view">
-    <PageHeader eyebrow="AI DATE MAKER" title="사이봇과 코스 만들기">
+    <PageHeader eyebrow="AI DATE MAKER" title="42봇과 코스 만들기">
       <div class="profile-wrapper">
         <button class="profile-chip" @click="showProfileMenu = !showProfileMenu">
           💞 {{ store.name || '우리 취향' }}
@@ -150,8 +189,8 @@ onMounted(async () => {
         </div>
       </BaseCard>
 
-      <!-- Map Card -->
-      <BaseCard class="map-card">
+      <!-- Course map appears only after 42bot has created a draft. -->
+      <BaseCard v-if="hasCourseDraft" class="map-card">
         <div class="map-row">
           <div>
             <span class="label">LIVE COURSE</span>
@@ -161,19 +200,67 @@ onMounted(async () => {
         </div>
         <div class="map-container">
           <LeafletMap
-            :coords="displayedCoords"
-            :places="displayedPlaces"
-            :images="hasCourseDraft ? store.course.images : []"
+            :coords="store.course.coords"
+            :places="store.course.places"
+            :images="store.course.images"
             static
           />
         </div>
       </BaseCard>
 
-      <section v-if="!hasCourseDraft" class="planning-guide" aria-label="사이봇 코스 생성 과정">
+      <BaseCard
+        v-else
+        class="promo-card"
+        aria-label="42봇 데이트 코스 미리보기"
+        @mouseenter="stopPromoSlide"
+        @mouseleave="startPromoSlide"
+        @touchstart.passive="stopPromoSlide"
+        @touchend.passive="startPromoSlide"
+      >
+        <div class="promo-head">
+          <div>
+            <span>42 CURATION</span>
+            <strong>데이트가 기다려지는 순간</strong>
+          </div>
+          <em>{{ String(activePromoSlide + 1).padStart(2, '0') }} / 03</em>
+        </div>
+        <div class="promo-viewport">
+          <div
+            class="promo-track"
+            :style="{ transform: `translateX(-${activePromoSlide * 100}%)` }"
+          >
+            <article
+              v-for="(slide, index) in promoSlides"
+              :key="slide.location"
+              class="promo-slide"
+              :aria-hidden="activePromoSlide !== index"
+            >
+              <img :src="slide.image" :alt="`${slide.location} 데이트 코스`" decoding="async" />
+              <div class="promo-copy">
+                <span>{{ slide.location }}</span>
+                <h3>{{ slide.title }}</h3>
+                <p>{{ slide.description }}</p>
+              </div>
+            </article>
+          </div>
+        </div>
+        <div class="promo-indicators" aria-label="데이트 코스 미리보기 위치">
+          <button
+            v-for="(_, index) in promoSlides"
+            :key="index"
+            type="button"
+            :class="{ active: activePromoSlide === index }"
+            :aria-label="`데이트 코스 미리보기 ${index + 1}번`"
+            @click="selectPromoSlide(index)"
+          ></button>
+        </div>
+      </BaseCard>
+
+      <section v-if="!hasCourseDraft" class="planning-guide" aria-label="42봇 코스 생성 과정">
         <div class="guide-copy">
           <span>HOW IT WORKS</span>
           <strong>둘의 취향이 코스가 되는 과정</strong>
-          <p>간단한 선택만 하면 날씨와 이동 동선까지 사이봇이 정리해요.</p>
+          <p>간단한 선택만 하면 날씨와 이동 동선까지 42봇이 정리해요.</p>
         </div>
         <div class="guide-steps">
           <div><b>01</b><span>취향 선택</span><small>분위기와 이동 방식</small></div>
@@ -220,7 +307,7 @@ onMounted(async () => {
           <p>약 1분이면 취향을 반영한 세 장소와 이동 순서를 준비해 드려요.</p>
         </div>
         <BaseButton variant="primary" full @click="startCourseSetup">
-          사이봇과 코스 만들기 →
+          42봇과 코스 만들기 →
         </BaseButton>
       </BaseCard>
 
@@ -229,7 +316,7 @@ onMounted(async () => {
         <div class="bot-head">
           <div class="bot-avatar">42</div>
           <div>
-            <strong>사이봇</strong>
+            <strong>42봇</strong>
             <p>대화로 코스를 바꿔드려요</p>
           </div>
         </div>
@@ -238,7 +325,7 @@ onMounted(async () => {
             <p v-html="msg.content"></p>
           </div>
           <div v-if="store.chatLoading" class="msg bot pending-message" aria-live="polite">
-            <p><i></i><i></i><i></i><span>사이봇이 코스를 다듬고 있어요</span></p>
+            <p><i></i><i></i><i></i><span>42봇이 코스를 다듬고 있어요</span></p>
           </div>
         </div>
         <div class="quick-options">
@@ -287,9 +374,9 @@ onMounted(async () => {
         </div>
         <div class="modal-map-container" style="margin-bottom: 0">
           <LeafletMap
-            :coords="displayedCoords"
-            :places="displayedPlaces"
-            :images="hasCourseDraft ? store.course.images : []"
+            :coords="store.course.coords"
+            :places="store.course.places"
+            :images="store.course.images"
           />
         </div>
       </div>
@@ -441,6 +528,147 @@ onMounted(async () => {
   padding: 15px;
   border: 1px solid rgba(225, 218, 228, 0.8);
   box-shadow: 0 12px 26px rgba(88, 65, 77, 0.09);
+}
+
+.promo-card {
+  position: relative;
+  margin-top: 11px;
+  padding: 0 0 12px;
+  overflow: hidden;
+  border: 1px solid rgba(240, 179, 195, 0.72);
+  background: linear-gradient(145deg, #fff9fa, #fff0f5);
+  box-shadow: 0 16px 34px rgba(167, 88, 112, 0.14);
+}
+
+.promo-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 15px 16px 12px;
+}
+
+.promo-head span {
+  display: block;
+  color: #d45f7b;
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: 0.15em;
+}
+
+.promo-head strong {
+  display: block;
+  margin-top: 4px;
+  color: #4d3d42;
+  font-size: 15px;
+  letter-spacing: -0.025em;
+}
+
+.promo-head em {
+  color: #b77889;
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.promo-viewport {
+  height: 220px;
+  margin: 0 10px;
+  overflow: hidden;
+  border-radius: 19px;
+  background: #eadde1;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.72);
+}
+
+.promo-track {
+  height: 100%;
+  display: flex;
+  transition: transform 0.72s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+
+.promo-slide {
+  position: relative;
+  flex: 0 0 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.promo-slide::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(41, 27, 31, 0.02) 30%, rgba(38, 24, 28, 0.78) 100%);
+  content: '';
+}
+
+.promo-slide img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  object-position: center;
+  transition: transform 5s ease;
+}
+
+.promo-slide:not([aria-hidden='true']) img {
+  transform: scale(1.035);
+}
+
+.promo-copy {
+  position: absolute;
+  z-index: 1;
+  right: 18px;
+  bottom: 17px;
+  left: 18px;
+  color: #fff;
+  text-shadow: 0 2px 12px rgba(37, 20, 25, 0.28);
+}
+
+.promo-copy span {
+  display: inline-flex;
+  padding: 5px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.46);
+  border-radius: 999px;
+  background: rgba(94, 49, 62, 0.24);
+  backdrop-filter: blur(6px);
+  font-size: 8px;
+  font-weight: 900;
+}
+
+.promo-copy h3 {
+  margin: 8px 0 3px;
+  font-size: 17px;
+  letter-spacing: -0.035em;
+}
+
+.promo-copy p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.promo-indicators {
+  display: flex;
+  justify-content: center;
+  gap: 5px;
+  padding-top: 10px;
+}
+
+.promo-indicators button {
+  width: 5px;
+  height: 5px;
+  padding: 0;
+  border-radius: 999px;
+  background: #dbc5cc;
+  transition:
+    width 0.24s ease,
+    background 0.24s ease;
+}
+
+.promo-indicators button.active {
+  width: 20px;
+  background: linear-gradient(90deg, #f17d9d, #c76082);
 }
 
 .map-row {

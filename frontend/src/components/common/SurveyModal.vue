@@ -63,7 +63,7 @@ async function handleNextSurveyStep() {
         </div>
         <div v-if="store.loading" class="ai-loading" aria-live="polite">
           <div class="orbit"><span>💞</span><i>✨</i><b>🌷</b></div>
-          <strong>사이봇이 두 분의 코스를 고르는 중이에요</strong>
+          <strong>42봇이 두 분의 코스를 고르는 중이에요</strong>
           <p>날씨와 취향, 이동 동선을 살펴보고 있어요.</p>
         </div>
         <div v-else-if="currentStepData.kind === 'datetime'" class="schedule-options">

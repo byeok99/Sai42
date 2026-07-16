@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDateStore } from '@/stores/dateStore'
 import BaseCard from '@/components/common/BaseCard.vue'
@@ -70,6 +70,69 @@ const scrollArea = ref<HTMLElement | null>(null)
 const pullDistance = ref(0)
 const pullStartY = ref<number | null>(null)
 const refreshing = ref(false)
+const liveSlider = ref<HTMLDivElement | null>(null)
+const activeLiveSlide = ref(0)
+let liveSlideTimer: number | null = null
+
+function stopLiveSlide() {
+  if (liveSlideTimer !== null) {
+    window.clearInterval(liveSlideTimer)
+    liveSlideTimer = null
+  }
+}
+
+function goToLiveSlide(index: number, behavior: ScrollBehavior = 'smooth') {
+  const slider = liveSlider.value
+  const slides = slider?.querySelectorAll<HTMLElement>('.live-slide')
+  const slide = slides?.[index]
+  if (!slider || !slide) return
+  activeLiveSlide.value = index
+  const centeredLeft =
+    slide.offsetLeft - slider.offsetLeft - (slider.clientWidth - slide.offsetWidth) / 2
+  slider.scrollTo({ left: centeredLeft, behavior })
+}
+
+function startLiveSlide() {
+  stopLiveSlide()
+  if (rankTab.value !== 'all' || store.featuredRankings.length < 2) return
+  liveSlideTimer = window.setInterval(() => {
+    goToLiveSlide((activeLiveSlide.value + 1) % store.featuredRankings.length)
+  }, 3600)
+}
+
+function syncLiveSlide() {
+  const slider = liveSlider.value
+  const slides = slider?.querySelectorAll<HTMLElement>('.live-slide')
+  if (!slider || !slides?.length) return
+  const index = Array.from(slides).reduce(
+    (closest, slide, slideIndex) =>
+      Math.abs(
+        slide.offsetLeft -
+          slider.offsetLeft -
+          (slider.clientWidth - slide.offsetWidth) / 2 -
+          slider.scrollLeft,
+      ) <
+      Math.abs(
+        slides[closest]!.offsetLeft -
+          slider.offsetLeft -
+          (slider.clientWidth - slides[closest]!.offsetWidth) / 2 -
+          slider.scrollLeft,
+      )
+        ? slideIndex
+        : closest,
+    0,
+  )
+  activeLiveSlide.value = index
+}
+
+function resumeLiveSlide() {
+  startLiveSlide()
+}
+
+function selectLiveSlide(index: number) {
+  goToLiveSlide(index)
+  startLiveSlide()
+}
 
 function startEdit(postId: string, comment: string) {
   editingId.value = postId
@@ -148,13 +211,33 @@ function endPull() {
   if (shouldRefresh) void refreshRankings()
 }
 
-onMounted(() => {
-  void refreshRankings()
+onMounted(async () => {
+  await refreshRankings()
+  await nextTick()
+  goToLiveSlide(0, 'auto')
+  startLiveSlide()
 })
-watch(rankTab, () => {
+onUnmounted(stopLiveSlide)
+watch(rankTab, async () => {
   currentPage.value = 1
-  void refreshRankings()
+  activeLiveSlide.value = 0
+  await refreshRankings()
+  await nextTick()
+  if (rankTab.value === 'all') {
+    goToLiveSlide(0, 'auto')
+    startLiveSlide()
+  } else {
+    stopLiveSlide()
+  }
 })
+watch(
+  () => store.featuredRankings.length,
+  async () => {
+    await nextTick()
+    goToLiveSlide(0, 'auto')
+    startLiveSlide()
+  },
+)
 </script>
 
 <template>
@@ -178,22 +261,6 @@ watch(rankTab, () => {
       >
         {{ refreshing ? '랭킹을 새로 불러오는 중…' : '놓으면 새로고침' }}
       </div>
-      <!-- Master Banner Card -->
-      <BaseCard class="master-card">
-        <span class="banner-label">이번 주 데이트 마스터</span>
-        <h3>🏆 공개 코스 랭킹</h3>
-        <p>완료한 데이트 코스를 다른 커플과 나눠요.</p>
-        <div class="crown">👑</div>
-      </BaseCard>
-
-      <!-- Tabs -->
-      <div class="tabs">
-        <button :class="{ active: rankTab === 'all' }" @click="rankTab = 'all'">인기 코스</button>
-        <button :class="{ active: rankTab === 'masters' }" @click="rankTab = 'masters'">
-          마스터 랭킹
-        </button>
-      </div>
-
       <section
         v-if="rankTab === 'all' && store.featuredRankings.length"
         class="live-ranking"
@@ -201,12 +268,21 @@ watch(rankTab, () => {
       >
         <div class="live-ranking-head">
           <div>
-            <span><i></i> LIVE TOP 3</span>
+            <span><i></i> LIVE COURSE</span>
             <strong>지금 가장 사랑받는 코스</strong>
+            <p>커플들이 가장 많이 하트를 보낸 데이트예요.</p>
           </div>
-          <small>옆으로 밀어보세요 →</small>
+          <em>TOP 3</em>
         </div>
-        <div class="live-slider">
+        <div
+          ref="liveSlider"
+          class="live-slider"
+          @scroll.passive="syncLiveSlide"
+          @mouseenter="stopLiveSlide"
+          @mouseleave="resumeLiveSlide"
+          @touchstart.passive="stopLiveSlide"
+          @touchend.passive="resumeLiveSlide"
+        >
           <article
             v-for="(item, index) in store.featuredRankings"
             :key="item.postId"
@@ -222,7 +298,33 @@ watch(rankTab, () => {
             </div>
           </article>
         </div>
+        <div class="live-indicators" aria-label="인기 코스 슬라이드 위치">
+          <button
+            v-for="(_, index) in store.featuredRankings"
+            :key="index"
+            type="button"
+            :class="{ active: activeLiveSlide === index }"
+            :aria-label="`인기 코스 ${index + 1}번 보기`"
+            @click="selectLiveSlide(index)"
+          ></button>
+        </div>
       </section>
+
+      <!-- Master Banner Card -->
+      <BaseCard v-else-if="rankTab === 'masters'" class="master-card">
+        <span class="banner-label">이번 주 데이트 마스터</span>
+        <h3>🏆 공개 코스 랭킹</h3>
+        <p>완료한 데이트 코스를 다른 커플과 나눠요.</p>
+        <div class="crown">👑</div>
+      </BaseCard>
+
+      <!-- Tabs -->
+      <div class="tabs">
+        <button :class="{ active: rankTab === 'all' }" @click="rankTab = 'all'">인기 코스</button>
+        <button :class="{ active: rankTab === 'masters' }" @click="rankTab = 'masters'">
+          마스터 랭킹
+        </button>
+      </div>
 
       <!-- Rankings List -->
       <div class="ranking-section-head">
@@ -425,7 +527,7 @@ watch(rankTab, () => {
   background:
     radial-gradient(circle at 82% 18%, rgba(255, 255, 255, 0.28), transparent 24%),
     linear-gradient(135deg, #ff8397 0%, #cc79b5 48%, #8f7cd3 100%);
-  margin-top: 16px;
+  margin-top: 15px;
   box-shadow: 0 16px 32px rgba(153, 100, 157, 0.24);
 }
 
@@ -460,7 +562,7 @@ watch(rankTab, () => {
   display: flex;
   gap: 4px;
   overflow-x: auto;
-  margin: 14px 0 16px;
+  margin: 12px 0 0;
   padding: 4px;
   border: 1px solid rgba(238, 227, 224, 0.9);
   border-radius: 15px;
@@ -495,14 +597,25 @@ watch(rankTab, () => {
 }
 
 .live-ranking {
-  margin-top: 14px;
+  position: relative;
+  margin-top: 15px;
+  padding: 17px 0 14px;
+  overflow: hidden;
+  border: 1px solid rgba(242, 176, 195, 0.72);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 96% 4%, rgba(255, 194, 212, 0.62), transparent 30%),
+    radial-gradient(circle at 0% 100%, rgba(255, 224, 233, 0.82), transparent 34%),
+    linear-gradient(145deg, #fff9fb, #fff0f5);
+  box-shadow: 0 16px 36px rgba(173, 88, 117, 0.15);
 }
 
 .live-ranking-head {
   display: flex;
   justify-content: space-between;
-  align-items: flex-end;
-  padding: 0 3px 9px;
+  align-items: flex-start;
+  padding: 0 17px 13px;
+  border-bottom: 1px solid rgba(239, 193, 206, 0.72);
 }
 
 .live-ranking-head span {
@@ -527,22 +640,39 @@ watch(rankTab, () => {
 .live-ranking-head strong {
   display: block;
   margin-top: 4px;
-  font-size: 13px;
+  color: #533c45;
+  font-size: 17px;
+  letter-spacing: -0.035em;
 }
 
-.live-ranking-head > small {
+.live-ranking-head p {
+  margin: 5px 0 0;
   color: var(--muted);
+  font-size: 8px;
+}
+
+.live-ranking-head > em {
+  padding: 6px 8px;
+  border: 1px solid rgba(225, 104, 132, 0.24);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.76);
+  color: #cf5b74;
   font-size: 7px;
+  font-style: normal;
+  font-weight: 900;
+  letter-spacing: 0.08em;
 }
 
 .live-slider {
   display: grid;
-  grid-auto-columns: 82%;
+  grid-auto-columns: 100%;
   grid-auto-flow: column;
-  gap: 10px;
+  gap: 30px;
   overflow-x: auto;
-  padding: 1px 3px 10px;
+  padding: 15px 18px 9px;
+  scroll-padding-inline: 18px;
   scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
   scrollbar-width: none;
 }
 
@@ -552,41 +682,56 @@ watch(rankTab, () => {
 
 .live-slide {
   position: relative;
-  min-height: 148px;
-  padding: 18px;
+  min-height: 172px;
+  padding: 22px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  border-radius: 22px;
-  background: linear-gradient(135deg, #ffe2e9, #f1e9ff);
-  box-shadow: 0 12px 24px rgba(97, 65, 83, 0.12);
-  scroll-snap-align: start;
+  border: 1px solid rgba(239, 170, 190, 0.7);
+  border-radius: 21px;
+  background:
+    radial-gradient(circle at 92% 14%, rgba(255, 255, 255, 0.88), transparent 25%),
+    linear-gradient(145deg, #ffe3ec, #fff5f8);
+  box-shadow:
+    0 12px 25px rgba(154, 72, 98, 0.13),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  scroll-snap-align: center;
 }
 
 .live-slide::after {
   position: absolute;
-  right: -24px;
-  bottom: -38px;
-  width: 110px;
-  height: 110px;
-  border: 24px solid rgba(255, 255, 255, 0.28);
+  right: -29px;
+  bottom: -43px;
+  width: 128px;
+  height: 128px;
+  border: 26px solid rgba(255, 255, 255, 0.38);
   border-radius: 50%;
   content: '';
 }
 
 .live-slide.live-rank-2 {
-  background: linear-gradient(135deg, #e9e4ff, #ffeaf1);
+  background:
+    radial-gradient(circle at 92% 14%, rgba(255, 255, 255, 0.82), transparent 25%),
+    linear-gradient(145deg, #f9dfe9, #fff2f6);
 }
 
 .live-slide.live-rank-3 {
-  background: linear-gradient(135deg, #fff0d8, #ffe5ec);
+  background:
+    radial-gradient(circle at 92% 14%, rgba(255, 255, 255, 0.82), transparent 25%),
+    linear-gradient(145deg, #ffe8ed, #fff7f4);
 }
 
 .live-rank-number {
   position: absolute;
-  top: 13px;
-  right: 16px;
-  color: rgba(116, 77, 94, 0.18);
-  font-size: 34px;
+  top: 16px;
+  right: 19px;
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(216, 111, 141, 0.14);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.36);
+  color: rgba(174, 73, 104, 0.28);
+  font-size: 24px;
   font-weight: 900;
 }
 
@@ -598,9 +743,10 @@ watch(rankTab, () => {
 
 .live-slide h3 {
   max-width: 78%;
-  margin: 6px 0 4px;
+  margin: 9px 0 5px;
   overflow: hidden;
-  font-size: 16px;
+  color: #4e3941;
+  font-size: 17px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -613,8 +759,8 @@ watch(rankTab, () => {
 
 .live-slide > div:last-child {
   position: absolute;
-  bottom: 16px;
-  left: 18px;
+  bottom: 21px;
+  left: 22px;
   z-index: 1;
 }
 
@@ -625,13 +771,36 @@ watch(rankTab, () => {
 
 .live-slide > div:last-child strong {
   color: #cf4f6b;
-  font-size: 15px;
+  font-size: 16px;
 }
 
 .live-slide > div:last-child small {
   margin-top: 2px;
   color: #866e74;
   font-size: 7px;
+}
+
+.live-indicators {
+  display: flex;
+  justify-content: center;
+  gap: 5px;
+  padding-top: 2px;
+}
+
+.live-indicators button {
+  width: 5px;
+  height: 5px;
+  padding: 0;
+  border-radius: 999px;
+  background: #d9cdd1;
+  transition:
+    width 0.2s ease,
+    background 0.2s ease;
+}
+
+.live-indicators button.active {
+  width: 18px;
+  background: linear-gradient(90deg, var(--pink), #9b82d6);
 }
 
 @keyframes live-pulse {
@@ -646,7 +815,9 @@ watch(rankTab, () => {
   justify-content: space-between;
   align-items: flex-end;
   gap: 12px;
-  margin: 0 2px 11px;
+  margin: 15px 2px 11px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(223, 209, 214, 0.82);
 }
 
 .ranking-section-head span {

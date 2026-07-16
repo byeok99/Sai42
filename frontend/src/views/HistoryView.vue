@@ -174,7 +174,7 @@ onMounted(() => {
 
 <template>
   <div class="history-view">
-    <PageHeader eyebrow="OUR MEMORY" title="우리의 추억">
+    <PageHeader eyebrow="OUR MEMORY" title="톺아보기">
       <button class="info-btn" aria-label="추억 캘린더 안내" @click="showInfo">✦</button>
     </PageHeader>
 
@@ -464,8 +464,19 @@ onMounted(() => {
   padding-top: 7px;
   border-radius: 11px;
   color: #66575a;
-  font-size: 9px;
-  font-weight: 800;
+  font-size: 10px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.calendar-grid button > span {
+  display: block;
+  min-width: 18px;
+  height: 13px;
+  line-height: 13px;
+  text-align: center;
+  transform: none;
 }
 
 .calendar-grid button.outside {

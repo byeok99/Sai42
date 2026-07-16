@@ -16,7 +16,7 @@ async function navigate(tabName: string) {
 <template>
   <nav class="nav" aria-label="주요 메뉴">
     <button :class="{ active: currentTab === 'chat' }" @click="navigate('chat')">
-      <span class="nav-icon">✦</span><span class="nav-label">사이봇</span>
+      <span class="nav-icon">✦</span><span class="nav-label">42봇</span>
     </button>
     <button :class="{ active: currentTab === 'ranking' }" @click="navigate('ranking')">
       <span class="nav-icon">♛</span><span class="nav-label">랭킹</span>

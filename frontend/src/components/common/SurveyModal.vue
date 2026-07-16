@@ -45,12 +45,17 @@ async function handleNextSurveyStep() {
         <div v-if="store.loading" class="ai-loading" aria-live="polite">
           <div class="orbit"><span>💞</span><i>✨</i><b>🌷</b></div>
           <strong>사이봇이 두 분의 코스를 고르는 중이에요</strong>
-          <p>날씨와 취향, 이동 동선을 살펴보고 있어요.</p>
+          <p>대전 날씨 정보를 받아오고 있어요. 잠시만 기다려 주세요.</p>
         </div>
         <div v-else-if="currentStepData.kind === 'datetime'" class="form-options">
           <label>
             날짜
-            <input v-model="store.courseDate" type="date" :min="store.minimumCourseDate" />
+            <input
+              v-model="store.courseDate"
+              type="date"
+              :min="store.minimumCourseDate"
+              :max="store.maximumCourseDate"
+            />
           </label>
           <label>
             시작 시각
@@ -133,12 +138,13 @@ async function handleNextSurveyStep() {
 
 .sheet-notch {
   position: relative;
+  min-height: 34px;
 }
 
 .handle {
   width: 45px;
   height: 5px;
-  margin: 0 auto 13px;
+  margin: 0 auto;
   background: #e6dad7;
   border-radius: 6px;
 }

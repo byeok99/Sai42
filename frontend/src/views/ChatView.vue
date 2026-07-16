@@ -103,7 +103,7 @@ onMounted(async () => {
 
     <div class="scroll-area">
       <!-- Weather Card -->
-      <BaseCard class="weather-card" v-if="store.course.weather">
+      <BaseCard class="weather-card" v-if="store.course.weather?.available">
         <div class="weather-left">
           <span class="emoji">{{ store.course.weather.condition === 'RAIN' || store.course.weather.condition === 'LIGHT_RAIN' ? '🌦️' : '☀️' }}</span>
           <div>
@@ -113,12 +113,21 @@ onMounted(async () => {
         </div>
         <BaseBadge variant="default">{{ store.course.weather.recommendation?.message || '실내 70%' }}</BaseBadge>
       </BaseCard>
+      <BaseCard class="weather-card weather-unavailable-card" v-else-if="store.course.weather">
+        <div class="weather-left">
+          <span class="emoji">🌫️</span>
+          <div>
+            <strong>대전 날씨를 불러올 수 없어요</strong>
+            <p>서버가 불안정하여 날씨 정보를 불러올 수 없습니다.</p>
+          </div>
+        </div>
+      </BaseCard>
       <BaseCard class="weather-card" v-else>
         <div class="weather-left">
           <span class="emoji">🌦️</span>
           <div>
-            <strong>대전 날씨 불러오는 중...</strong>
-            <p>조금만 기다려주세요</p>
+            <strong>대전 날씨는 코스를 만들 때 확인해요</strong>
+            <p>데이트 조건을 입력하면 날씨를 반영해 추천해 드릴게요.</p>
           </div>
         </div>
       </BaseCard>
@@ -335,6 +344,10 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: center;
   background: linear-gradient(135deg, #fff0be, #ffe0e5);
+}
+
+.weather-unavailable-card {
+  background: linear-gradient(135deg, #f5efed, #eee8ff);
 }
 
 .weather-left {

@@ -1,6 +1,5 @@
 <script setup lang="ts">
-
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useDateStore } from '@/stores/dateStore'
 import BaseCard from '@/components/common/BaseCard.vue'
 import BaseButton from '@/components/common/BaseButton.vue'
@@ -140,10 +139,7 @@ function movePull(event: TouchEvent) {
   }
 
   if (event.cancelable) event.preventDefault()
-  pullDistance.value = Math.min(
-    78,
-    distance,
-  )
+  pullDistance.value = Math.min(78, distance)
 }
 
 function endPull() {
@@ -153,8 +149,7 @@ function endPull() {
   if (shouldRefresh) void refreshHistory()
 }
 
-
-async function editPost(courseId: string, currentComment: string) {
+function editPost(courseId: string, currentComment: string, courseTitle: string) {
   const post = postsByCourseId.value.get(courseId)
   if (!post) return
   editPostId.value = post.postId

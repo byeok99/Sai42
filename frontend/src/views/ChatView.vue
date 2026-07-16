@@ -44,7 +44,10 @@ const promoSlides = [
   },
 ]
 const hasCourseDraft = computed(() => store.course.places.length > 0)
-const displayedWeather = computed(() => store.course.weather ?? store.todayWeather)
+const displayedWeather = computed(() => {
+  const weather = store.course.weather ?? store.todayWeather
+  return weather?.available ? weather : null
+})
 
 function stopPromoSlide() {
   if (promoSlideTimer !== null) {
@@ -150,7 +153,7 @@ watch(hasCourseDraft, (hasDraft) => {
     <div class="scroll-area">
       <!-- Weather Card -->
 
-      <BaseCard class="weather-card" v-if="store.course.weather?.available">
+      <BaseCard v-if="displayedWeather" class="weather-card">
         <div class="weather-left">
           <span class="emoji">{{ weatherEmoji(displayedWeather.condition) }}</span>
           <div>
@@ -185,10 +188,8 @@ watch(hasCourseDraft, (hasDraft) => {
         <div class="weather-left">
           <span class="emoji">🌦️</span>
           <div>
-
             <strong>대전 날씨는 코스를 만들 때 확인해요</strong>
             <p>데이트 조건을 입력하면 날씨를 반영해 추천해 드릴게요.</p>
-
           </div>
         </div>
       </BaseCard>

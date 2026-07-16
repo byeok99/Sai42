@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 import { useDateStore } from '@/stores/dateStore'
 import BaseCard from '@/components/common/BaseCard.vue'
 import BaseButton from '@/components/common/BaseButton.vue'
 import LeafletMap from '@/components/map/LeafletMap.vue'
 
 const showMapModal = ref(false)
+const scrollArea = ref<HTMLElement | null>(null)
+const pullDistance = ref(0)
+const pullStartY = ref<number | null>(null)
+const refreshing = ref(false)
 
 const store = useDateStore()
-const router = useRouter()
 
 const progressPct = computed(() => {
   return store.activeCourse?.progress.progressPercent ?? 0
@@ -27,9 +29,37 @@ function endDating() {
   store.showCommentModal = true
 }
 
-function navigateToChat() {
+function openCourseSurvey() {
   store.startNewCourseSetup()
-  router.push({ name: 'chat' })
+}
+
+async function refreshCurrentCourse() {
+  if (refreshing.value) return
+  refreshing.value = true
+  const startedAt = Date.now()
+  await store.loadCurrentCourse()
+  const remainingDuration = 600 - (Date.now() - startedAt)
+  if (remainingDuration > 0) await new Promise((resolve) => setTimeout(resolve, remainingDuration))
+  refreshing.value = false
+}
+
+function startPull(event: TouchEvent) {
+  if ((scrollArea.value?.scrollTop ?? 0) <= 0) pullStartY.value = event.touches[0]?.clientY ?? null
+}
+
+function movePull(event: TouchEvent) {
+  if (pullStartY.value === null) return
+  pullDistance.value = Math.min(
+    78,
+    Math.max(0, (event.touches[0]?.clientY ?? pullStartY.value) - pullStartY.value),
+  )
+}
+
+function endPull() {
+  const shouldRefresh = pullDistance.value >= 58
+  pullStartY.value = null
+  pullDistance.value = 0
+  if (shouldRefresh) void refreshCurrentCourse()
 }
 
 onMounted(() => {
@@ -47,13 +77,27 @@ onMounted(() => {
       <span v-if="store.activeCourse" class="live-badge">● 진행 중</span>
     </header>
 
-    <div class="scroll-area">
+    <div
+      ref="scrollArea"
+      class="scroll-area"
+      @touchstart="startPull"
+      @touchmove="movePull"
+      @touchend="endPull"
+      @touchcancel="endPull"
+    >
+      <div
+        class="pull-indicator"
+        :class="{ visible: pullDistance > 0 || refreshing }"
+        :style="{ height: `${refreshing ? 30 : pullDistance}px` }"
+      >
+        {{ refreshing ? '현재 데이트를 새로 불러오는 중…' : '놓으면 새로고침' }}
+      </div>
       <!-- Empty State -->
       <div v-if="!store.activeCourse" class="empty-state">
         <div class="empty-emoji">🗺️</div>
         <h3>아직 오늘의 코스가 없어요</h3>
         <p>사이봇과 대화해서 두 분만의 코스를 만들어 보세요.</p>
-        <BaseButton variant="primary" @click="navigateToChat"> 코스 만들기 </BaseButton>
+        <BaseButton variant="primary" @click="openCourseSurvey"> 코스 만들기 </BaseButton>
       </div>
 
       <!-- Active Course Body -->
@@ -88,7 +132,7 @@ onMounted(() => {
             :places="store.activeCourse.places.map((place) => place.place.name)"
             static
           />
-          <button class="small-btn map-zoom-btn" @click="showMapModal = true">전체보기</button>
+          <button class="small-btn map-zoom-btn" @click="showMapModal = true">지도 크게보기</button>
         </BaseCard>
 
         <!-- Places List -->
@@ -178,6 +222,20 @@ onMounted(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
+}
+
+.pull-indicator {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: calc(9px * 1.014);
+  font-weight: 800;
+  transition: height 0.15s ease;
+}
+
+.pull-indicator.visible {
+  padding: 15px 0;
 }
 
 .top-bar {

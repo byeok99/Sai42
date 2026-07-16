@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue'
+import { computed, ref, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDateStore } from '@/stores/dateStore'
 import BaseCard from '@/components/common/BaseCard.vue'
 import BaseButton from '@/components/common/BaseButton.vue'
 import BaseBadge from '@/components/common/BaseBadge.vue'
 import LeafletMap from '@/components/map/LeafletMap.vue'
+import { formatDistrict } from '@/utils/district'
 
 const store = useDateStore()
 const router = useRouter()
@@ -14,6 +15,20 @@ const chatInput = ref('')
 const messagesContainer = ref<HTMLDivElement | null>(null)
 const showMapModal = ref(false)
 const showProfileMenu = ref(false)
+
+const nearbyPreviewPlaces = ['한밭수목원', '대전시립미술관', '엑스포다리']
+const nearbyPreviewCoords: [number, number][] = [
+  [36.3675, 127.388],
+  [36.367, 127.387],
+  [36.376, 127.389],
+]
+const hasCourseDraft = computed(() => store.course.places.length > 0)
+const displayedPlaces = computed(() =>
+  hasCourseDraft.value ? store.course.places : nearbyPreviewPlaces,
+)
+const displayedCoords = computed(() =>
+  hasCourseDraft.value ? store.course.coords : nearbyPreviewCoords,
+)
 
 function handleLogout() {
   store.logout()
@@ -50,8 +65,18 @@ async function confirmCourse() {
   if (await store.decideCourse()) router.push({ name: 'current' })
 }
 
-onMounted(() => {
-  store.fetchChatSession()
+function startCourseSetup() {
+  store.startNewCourseSetup()
+}
+
+function goToCurrentDate() {
+  showProfileMenu.value = false
+  void router.push({ name: 'current' })
+}
+
+onMounted(async () => {
+  await store.loadCurrentCourse()
+  if (!store.activeCourse) store.fetchChatSession()
   scrollToBottom()
 })
 </script>
@@ -68,7 +93,7 @@ onMounted(() => {
           💞 {{ store.name || '우리 취향' }}
         </button>
         <div v-if="showProfileMenu" class="profile-menu">
-          <button @click="store.showSurvey = true; showProfileMenu = false">취향 수정</button>
+          <button @click="goToCurrentDate">취향 수정</button>
           <button @click="handleLogout" class="logout-item">로그아웃</button>
         </div>
       </div>
@@ -82,7 +107,7 @@ onMounted(() => {
         <div class="weather-left">
           <span class="emoji">{{ store.course.weather.condition === 'RAIN' || store.course.weather.condition === 'LIGHT_RAIN' ? '🌦️' : '☀️' }}</span>
           <div>
-            <strong>{{ store.course.weather.district || '대전' }} {{ store.course.weather.temperatureMin }}°C</strong>
+            <strong>{{ formatDistrict(store.course.weather.district) || '대전' }} {{ store.course.weather.temperatureMin }}°C</strong>
             <p>{{ store.course.weather.summary || '날씨 정보가 업데이트되었습니다' }}</p>
           </div>
         </div>
@@ -108,12 +133,12 @@ onMounted(() => {
           <button class="small-btn" @click="triggerMapFit">전체보기</button>
         </div>
         <div class="map-container">
-          <LeafletMap :coords="store.course.coords" :places="store.course.places" static />
+          <LeafletMap :coords="displayedCoords" :places="displayedPlaces" static />
         </div>
       </BaseCard>
 
       <!-- Course Summary Card -->
-      <BaseCard class="course-card">
+      <BaseCard v-if="hasCourseDraft" class="course-card">
         <div class="course-row">
           <div>
             <span class="label">AI 추천 코스</span>
@@ -131,10 +156,26 @@ onMounted(() => {
             {{ place }}
           </li>
         </ol>
+        <BaseButton
+          v-if="store.activeCourse"
+          class="current-course-btn"
+          variant="secondary"
+          full
+          @click="router.push({ name: 'current' })"
+        >
+          현재 데이트 이어가기
+        </BaseButton>
+      </BaseCard>
+
+      <BaseCard v-else class="empty-course-card">
+        <div class="speech-bubble">코스를 생성해보세요!!</div>
+        <h3>사이봇이 두 분의 취향에 맞는 데이트 코스를 만들어드릴게요.</h3>
+        <p>가까운 세 장소를 미리 둘러보며, 어떤 하루를 보내고 싶은지 알려주세요.</p>
+        <BaseButton variant="primary" full @click="startCourseSetup">코스 만들기</BaseButton>
       </BaseCard>
 
       <!-- Chatbox Card -->
-      <BaseCard class="chatbox-card">
+      <BaseCard v-if="!store.activeCourse && hasCourseDraft" class="chatbox-card">
         <div class="bot-head">
           <div class="bot-avatar">42</div>
           <div>
@@ -176,7 +217,7 @@ onMounted(() => {
     </div>
 
     <!-- Decide Fixed Bottom Panel -->
-    <div class="decide-action-bar">
+    <div v-if="!store.activeCourse && hasCourseDraft" class="decide-action-bar">
       <BaseButton variant="primary" full @click="confirmCourse"> 이 코스로 결정하기 💗 </BaseButton>
     </div>
     <!-- Fullscreen Map Modal -->
@@ -191,7 +232,7 @@ onMounted(() => {
           <button class="close-x-btn" @click="showMapModal = false">&times;</button>
         </div>
         <div class="modal-map-container" style="margin-bottom: 0">
-          <LeafletMap :coords="store.course.coords" :places="store.course.places" />
+          <LeafletMap :coords="displayedCoords" :places="displayedPlaces" />
         </div>
       </div>
     </div>
@@ -456,6 +497,46 @@ onMounted(() => {
   padding: 14px;
 }
 
+.empty-course-card {
+  margin-top: 11px;
+  padding: 16px;
+  text-align: center;
+}
+
+.empty-course-card h3 {
+  margin: 13px 0 6px;
+  font-size: 14px;
+}
+
+.empty-course-card p {
+  margin: 0 0 14px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.speech-bubble {
+  position: relative;
+  display: inline-block;
+  padding: 9px 12px;
+  border-radius: 14px;
+  background: #fff0f3;
+  color: #d85369;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.speech-bubble::after {
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  width: 11px;
+  height: 11px;
+  background: #fff0f3;
+  content: '';
+  transform: translateX(-50%) rotate(45deg);
+}
+
 .course-row {
   display: flex;
   justify-content: space-between;
@@ -515,6 +596,10 @@ onMounted(() => {
   background: var(--pink);
   color: #fff;
   font-size: 9px;
+}
+
+.current-course-btn {
+  margin-top: 12px;
 }
 
 .chatbox-card {

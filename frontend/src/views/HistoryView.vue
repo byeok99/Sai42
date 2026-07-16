@@ -2,6 +2,7 @@
 import { computed, onActivated, onMounted, ref } from 'vue'
 import { useDateStore } from '@/stores/dateStore'
 import BaseCard from '@/components/common/BaseCard.vue'
+import { formatDistrict } from '@/utils/district'
 
 const store = useDateStore()
 const scrollArea = ref<HTMLElement | null>(null)
@@ -34,12 +35,15 @@ function showInfo() {
 async function refreshHistory() {
   if (refreshing.value) return
   refreshing.value = true
+  const startedAt = Date.now()
   await Promise.all([store.loadHistory(), store.loadRankings()])
+  const remainingDuration = 600 - (Date.now() - startedAt)
+  if (remainingDuration > 0) await new Promise((resolve) => setTimeout(resolve, remainingDuration))
   refreshing.value = false
 }
 
 function startPull(event: TouchEvent) {
-  if (scrollArea.value?.scrollTop === 0) pullStartY.value = event.touches[0]?.clientY ?? null
+  if ((scrollArea.value?.scrollTop ?? 0) <= 0) pullStartY.value = event.touches[0]?.clientY ?? null
 }
 
 function movePull(event: TouchEvent) {
@@ -96,11 +100,12 @@ async function deletePost(courseId: string) {
       @touchstart="startPull"
       @touchmove="movePull"
       @touchend="endPull"
+      @touchcancel="endPull"
     >
       <div
         class="pull-indicator"
         :class="{ visible: pullDistance > 0 || refreshing }"
-        :style="{ height: `${refreshing ? 38 : pullDistance}px` }"
+        :style="{ height: `${refreshing ? 30 : pullDistance}px` }"
       >
         {{ refreshing ? '추억을 새로 불러오는 중…' : '놓으면 새로고침' }}
       </div>
@@ -132,7 +137,7 @@ async function deletePost(courseId: string) {
           <div class="hhead">
             <div class="date-badge">{{ item.date.slice(-2) }}</div>
             <div>
-              <span class="label">{{ item.mainDistrict }}</span>
+              <span class="label">{{ formatDistrict(item.mainDistrict) }}</span>
               <h3>{{ item.courseTitle }}</h3>
               <p>{{ item.totalPlaceCount }}개 장소 · 하트 {{ item.heartedPlaceCount }}개</p>
             </div>
@@ -242,9 +247,13 @@ async function deletePost(courseId: string) {
   place-items: center;
   overflow: hidden;
   color: var(--muted);
-  font-size: 9px;
+  font-size: calc(9px * 1.014);
   font-weight: 800;
   transition: height 0.15s ease;
+}
+
+.pull-indicator.visible {
+  padding: 15px 0;
 }
 
 .history-card {

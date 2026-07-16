@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDateStore } from '@/stores/dateStore'
+import { identityService } from '@/services/identityService'
 import BaseInput from '@/components/common/BaseInput.vue'
 import BaseButton from '@/components/common/BaseButton.vue'
 import BaseCard from '@/components/common/BaseCard.vue'
@@ -11,29 +12,44 @@ const router = useRouter()
 
 const nameInput = ref(store.name)
 const pwInput = ref('')
+const nicknameSuggestions = ref<string[]>([])
+const loadingSuggestions = ref(false)
 
 function changeAuthMode(mode: 'enter' | 'register') {
   store.authMode = mode
 }
 
-async function handleAuth() {
-  if (store.authMode === 'register') {
-    const success = await store.register(nameInput.value, pwInput.value)
-    if (success) {
-      router.push({ name: 'chat' })
-      if (!store.surveyDone) {
-        store.showSurvey = true
-      }
-    }
-  } else {
-    const success = await store.login(nameInput.value, pwInput.value)
-    if (success) {
-      router.push({ name: 'chat' })
-      if (!store.surveyDone) {
-        store.showSurvey = true
-      }
-    }
+async function loadNicknameSuggestions() {
+  loadingSuggestions.value = true
+  try {
+    nicknameSuggestions.value = (await identityService.getNicknameSuggestions()).data?.suggestions.slice(0, 3) ?? []
+  } catch {
+    nicknameSuggestions.value = []
+  } finally {
+    loadingSuggestions.value = false
   }
+}
+
+function selectNickname(nickname: string) {
+  nameInput.value = nickname
+}
+
+watch(
+  () => store.authMode,
+  (mode) => {
+    if (mode === 'register') void loadNicknameSuggestions()
+  },
+)
+
+async function handleAuth() {
+  const success =
+    store.authMode === 'register'
+      ? await store.register(nameInput.value, pwInput.value)
+      : await store.login(nameInput.value, pwInput.value)
+  if (!success) return
+
+  await store.loadCurrentCourse()
+  await router.push({ name: 'chat' })
 }
 </script>
 
@@ -66,6 +82,22 @@ async function handleAuth() {
         placeholder="예: 복숭아와호두"
         :maxlength="14"
       />
+
+      <div v-if="store.authMode === 'register'" class="nickname-suggestions">
+        <p>이런 닉네임은 어때요? 😊</p>
+        <div v-if="loadingSuggestions" class="suggestion-loading">추천을 불러오는 중이에요…</div>
+        <div v-else class="suggestion-list">
+          <button
+            v-for="nickname in nicknameSuggestions"
+            :key="nickname"
+            type="button"
+            :class="{ selected: nameInput === nickname }"
+            @click="selectNickname(nickname)"
+          >
+            {{ nickname }}
+          </button>
+        </div>
+      </div>
 
       <BaseInput
         id="pw"
@@ -180,6 +212,39 @@ async function handleAuth() {
 
 .login-card :deep(.btn) {
   margin-top: 19px;
+}
+
+.nickname-suggestions {
+  margin: 9px 3px 0;
+}
+
+.nickname-suggestions p,
+.suggestion-loading {
+  margin: 0 0 7px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.suggestion-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.suggestion-list button {
+  padding: 7px 9px;
+  border: 1px solid #f0d7dc;
+  border-radius: 10px;
+  background: #fff7f8;
+  color: #c75468;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.suggestion-list button.selected {
+  border-color: var(--pink);
+  background: #ffe1e7;
 }
 
 .help {

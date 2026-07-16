@@ -4,10 +4,11 @@ import { useRouter } from 'vue-router'
 import { useDateStore } from '@/stores/dateStore'
 import BaseCard from '@/components/common/BaseCard.vue'
 import LeafletMap from '@/components/map/LeafletMap.vue'
+import { formatDistrict } from '@/utils/district'
 
 const store = useDateStore()
 const router = useRouter()
-const rankTab = ref<'popular' | 'masters' | 'new'>('popular')
+const rankTab = ref<'all' | 'masters'>('all')
 
 const sortedRankings = computed(() => {
   return store.rankings
@@ -61,12 +62,16 @@ function toggleRoute(postId: string) {
 async function refreshRankings() {
   if (refreshing.value) return
   refreshing.value = true
-  await store.loadRankings(rankTab.value === 'new' ? 'LATEST' : 'POPULAR')
+  const startedAt = Date.now()
+  if (rankTab.value === 'masters') await store.loadMasters()
+  else await store.loadRankings()
+  const remainingDuration = 600 - (Date.now() - startedAt)
+  if (remainingDuration > 0) await new Promise((resolve) => setTimeout(resolve, remainingDuration))
   refreshing.value = false
 }
 
 function startPull(event: TouchEvent) {
-  if (scrollArea.value?.scrollTop === 0) pullStartY.value = event.touches[0]?.clientY ?? null
+  if ((scrollArea.value?.scrollTop ?? 0) <= 0) pullStartY.value = event.touches[0]?.clientY ?? null
 }
 
 function movePull(event: TouchEvent) {
@@ -108,11 +113,12 @@ watch(rankTab, () => {
       @touchstart="startPull"
       @touchmove="movePull"
       @touchend="endPull"
+      @touchcancel="endPull"
     >
       <div
         class="pull-indicator"
         :class="{ visible: pullDistance > 0 || refreshing }"
-        :style="{ height: `${refreshing ? 38 : pullDistance}px` }"
+        :style="{ height: `${refreshing ? 30 : pullDistance}px` }"
       >
         {{ refreshing ? '랭킹을 새로 불러오는 중…' : '놓으면 새로고침' }}
       </div>
@@ -126,26 +132,30 @@ watch(rankTab, () => {
 
       <!-- Tabs -->
       <div class="tabs">
-        <button :class="{ active: rankTab === 'popular' }" @click="rankTab = 'popular'">
-          인기 코스
+        <button :class="{ active: rankTab === 'all' }" @click="rankTab = 'all'">
+          전체
         </button>
         <button :class="{ active: rankTab === 'masters' }" @click="rankTab = 'masters'">
-          데이트 마스터
+          마스터 랭킹
         </button>
-        <button :class="{ active: rankTab === 'new' }" @click="rankTab = 'new'">새 코스</button>
       </div>
 
       <!-- Rankings List -->
-      <div class="ranklist">
+      <div v-if="rankTab === 'all'" class="ranklist">
         <BaseCard v-for="(item, idx) in sortedRankings" :key="item.postId" class="rank-card">
           <div class="rank-head">
             <div class="num">{{ idx + 1 }}</div>
             <div class="rank-info">
-              <span class="theme-tag">{{ item.mainDistrict }}</span>
+              <div class="theme-row">
+                <span class="theme-tag">{{ formatDistrict(item.mainDistrict) }}</span>
+                <span class="heart-place-message">
+                  경로 중에 하트 {{ item.placeHeartCount }}곳 받은 장소가 있어요!!
+                </span>
+              </div>
               <h3>{{ item.courseTitle }}</h3>
               <div class="meta">
                 <span>{{ item.authorNickname }}</span>
-                <span>순위 {{ item.rank ?? idx + 1 }}</span>
+                <!-- <span>순위 {{ item.rank ?? idx + 1 }}</span> -->
               </div>
             </div>
           </div>
@@ -206,10 +216,24 @@ watch(rankTab, () => {
             <button class="like-btn" @click="handleLike(item.postId, item.likedByMe)">
               {{ item.likedByMe ? '♥' : '♡' }} {{ item.courseLikeCount }}
             </button>
-            <span class="use-count">장소 하트 {{ item.placeHeartCount }}개</span>
             <button class="import-btn" :disabled="store.loading" @click="startCourse(item.postId)">
               현재 데이트로 시작
             </button>
+          </div>
+        </BaseCard>
+      </div>
+      <div v-else class="ranklist">
+        <BaseCard v-for="master in store.masters" :key="master.profileId" class="rank-card master-rank-card">
+          <div class="rank-head">
+            <div class="num">{{ master.rank }}</div>
+            <div class="rank-info">
+              <span class="theme-tag">데이트 마스터</span>
+              <h3>{{ master.nickname }}</h3>
+              <div class="meta">
+                <span>공개 코스 {{ master.publishedCourseCount }}개</span>
+                <span>받은 좋아요 {{ master.receivedLikeCount }}개</span>
+              </div>
+            </div>
           </div>
         </BaseCard>
       </div>
@@ -336,9 +360,13 @@ watch(rankTab, () => {
   place-items: center;
   overflow: hidden;
   color: var(--muted);
-  font-size: 9px;
+  font-size: calc(9px * 1.014);
   font-weight: 800;
   transition: height 0.15s ease;
+}
+
+.pull-indicator.visible {
+  padding: 15px 0;
 }
 
 .rank-card {
@@ -370,6 +398,18 @@ watch(rankTab, () => {
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.08em;
+}
+
+.theme-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.heart-place-message {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 700;
 }
 
 .rank-card h3 {

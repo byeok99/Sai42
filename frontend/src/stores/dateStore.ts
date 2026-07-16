@@ -7,7 +7,11 @@ import { historyService } from '@/services/historyService'
 import { identityService } from '@/services/identityService'
 import { rankingService } from '@/services/rankingService'
 import type { AuthenticatedApiHeaders } from '@/types/api/common'
-import type { CommunityPostDetailDto, CommunityPostSummaryDto } from '@/types/api/community'
+import type {
+  CommunityPostDetailDto,
+  CommunityPostSummaryDto,
+  DateMasterDto,
+} from '@/types/api/community'
 import type { DateCourseDto, HistoryCourseSummaryDto, WeatherSummaryDto } from '@/types/api/course'
 import type { CourseEditAction, CreateChatSessionRequestDto } from '@/types/api/chat'
 
@@ -104,6 +108,7 @@ export const useDateStore = defineStore('dateStore', () => {
   const messages = ref<Array<{ role: 'bot' | 'user'; content: string }>>([])
   const activeCourse = ref<DateCourseDto | null>(null)
   const rankings = ref<CommunityPostSummaryDto[]>([])
+  const masters = ref<DateMasterDto[]>([])
   const selectedCommunityCourse = ref<CommunityPostDetailDto | null>(null)
   const history = ref<HistoryCourseSummaryDto[]>([])
 
@@ -191,6 +196,19 @@ export const useDateStore = defineStore('dateStore', () => {
           : [],
       ),
       weather: draft.weather,
+    }
+  }
+
+  function applyActiveCourse(active: DateCourseDto) {
+    course.value = {
+      title: active.title,
+      places: active.places.map((item) => item.place.name),
+      coords: active.places.flatMap((item) =>
+        item.place.latitude !== null && item.place.longitude !== null
+          ? [[item.place.latitude, item.place.longitude] as [number, number]]
+          : [],
+      ),
+      weather: active.weather,
     }
   }
 
@@ -345,6 +363,11 @@ export const useDateStore = defineStore('dateStore', () => {
     showSurvey.value = true
   }
 
+  function closeSurvey() {
+    showSurvey.value = false
+    surveyStep.value = 0
+  }
+
   async function sendChatMessage(message: string) {
     if (!message.trim()) return
     if (!sessionId.value || !draftVersion.value) {
@@ -418,7 +441,9 @@ export const useDateStore = defineStore('dateStore', () => {
 
   async function loadCurrentCourse() {
     try {
-      activeCourse.value = (await courseService.getCurrentCourse(authHeaders())).data
+      const currentCourse = (await courseService.getCurrentCourse(authHeaders())).data
+      activeCourse.value = currentCourse
+      if (currentCourse) applyActiveCourse(currentCourse)
     } catch (error) {
       if (error instanceof Error && !error.message.includes('다시 로그인'))
         triggerToast(error.message)
@@ -551,7 +576,11 @@ export const useDateStore = defineStore('dateStore', () => {
     }
   }
   async function loadMasters() {
-    return rankingService.getMasters()
+    try {
+      masters.value = (await rankingService.getMasters()).data?.masters ?? []
+    } catch (error) {
+      triggerToast(error instanceof Error ? error.message : '마스터 랭킹을 불러오지 못했습니다.')
+    }
   }
 
   return {
@@ -576,6 +605,7 @@ export const useDateStore = defineStore('dateStore', () => {
     messages,
     activeCourse,
     rankings,
+    masters,
     selectedCommunityCourse,
     history,
     register,
@@ -586,6 +616,7 @@ export const useDateStore = defineStore('dateStore', () => {
     nextSurveyStep,
     prevSurveyStep,
     startNewCourseSetup,
+    closeSurvey,
     sendChatMessage,
     sendQuickAction,
     decideCourse,

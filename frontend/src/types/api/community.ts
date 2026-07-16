@@ -13,6 +13,18 @@ export interface CommunityPostSummaryDto {
   rank?: number
 }
 
+export interface DateMasterDto {
+  rank: number
+  profileId: string
+  nickname: string
+  publishedCourseCount: number
+  receivedLikeCount: number
+}
+
+export interface DateMastersDto {
+  masters: DateMasterDto[]
+}
+
 import type { CourseMapDto, CoursePlaceDto } from '@/types/api/course'
 
 export interface CommunityPostDetailDto {

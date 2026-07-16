@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { useDateStore } from '@/stores/dateStore'
 import BaseButton from './BaseButton.vue'
 
 const store = useDateStore()
+const router = useRouter()
 
 const currentStepData = computed(() => store.surveyStepsList[store.surveyStep]!)
 const answersForKey = computed(() =>
@@ -12,12 +14,22 @@ const answersForKey = computed(() =>
 const progressWidth = computed(
   () => `${((store.surveyStep + 1) / store.surveyStepsList.length) * 100}%`,
 )
+
+async function handleNextSurveyStep() {
+  await store.nextSurveyStep()
+  if (!store.showSurvey && store.surveyDone) await router.push({ name: 'chat' })
+}
 </script>
 
 <template>
   <div v-if="store.showSurvey" class="overlay open">
     <div class="sheet">
-      <div class="handle"></div>
+      <div class="sheet-notch">
+        <div class="handle"></div>
+        <button class="close-btn" type="button" aria-label="설문 닫기" @click="store.closeSurvey">
+          &times;
+        </button>
+      </div>
       <div class="surveyhead">
         <span>{{ store.surveyStep + 1 }} / {{ store.surveyStepsList.length }}</span>
         <div class="surveybar">
@@ -85,7 +97,7 @@ const progressWidth = computed(
         >
           이전
         </BaseButton>
-        <BaseButton variant="primary" :disabled="store.loading" @click="store.nextSurveyStep">
+        <BaseButton variant="primary" :disabled="store.loading" @click="handleNextSurveyStep">
           {{
             store.surveyStep === store.surveyStepsList.length - 1
               ? store.loading
@@ -119,12 +131,30 @@ const progressWidth = computed(
   border-radius: 27px;
 }
 
+.sheet-notch {
+  position: relative;
+}
+
 .handle {
   width: 45px;
   height: 5px;
   margin: 0 auto 13px;
   background: #e6dad7;
   border-radius: 6px;
+}
+
+.close-btn {
+  position: absolute;
+  top: -7px;
+  right: -4px;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 10px;
+  background: #f6efed;
+  color: var(--muted);
+  font-size: 21px;
+  line-height: 1;
 }
 
 .surveyhead {

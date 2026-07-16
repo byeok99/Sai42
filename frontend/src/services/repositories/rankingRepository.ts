@@ -1,15 +1,15 @@
 import { apiClient } from '@/services/api/client'
 import { apiEndpoints } from '@/services/api/endpoints'
 import type { BaseDto } from '@/types/api/common'
-import type { CommunityPostSummaryDto } from '@/types/api/community'
+import type { DateMastersDto } from '@/types/api/community'
 
 export interface RankingRepository {
-  getMasters(): Promise<BaseDto<CommunityPostSummaryDto[]>>
+  getMasters(): Promise<BaseDto<DateMastersDto>>
 }
 
 export class RankingRepositoryImpl implements RankingRepository {
   async getMasters() {
-    return apiClient.get<CommunityPostSummaryDto[]>(apiEndpoints.rankingsMasters)
+    return apiClient.get<DateMastersDto>(apiEndpoints.rankingsMasters)
   }
 }
 

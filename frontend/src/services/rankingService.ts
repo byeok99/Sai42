@@ -1,5 +1,5 @@
 import { rankingRepository } from '@/services/repositories/rankingRepository'
 
 export const rankingService = {
-  getMasters: () => rankingRepository.getMasters(),
+  getMasters: (limit?: number) => rankingRepository.getMasters(limit),
 }

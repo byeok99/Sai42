@@ -6,10 +6,12 @@ import 'leaflet/dist/leaflet.css'
 interface Props {
   coords: [number, number][]
   places: string[]
+  images?: Array<string | null>
   static?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  images: () => [],
   static: false,
 })
 
@@ -26,6 +28,76 @@ const createNumberedIcon = (num: string | number) => {
     iconSize: [30, 30],
     iconAnchor: [15, 30],
   })
+}
+
+function createPlacePreview(name: string, imageUrl: string | null) {
+  const preview = document.createElement('div')
+  preview.className = 'map-place-preview'
+
+  const createImageFallback = () => {
+    const fallback = document.createElement('span')
+    fallback.className = 'map-place-image-fallback'
+    fallback.textContent = '사진 준비 중'
+    return fallback
+  }
+
+  if (imageUrl) {
+    const image = document.createElement('img')
+    image.src = imageUrl.replace(/^http:/, 'https:')
+    image.alt = `${name} 장소 사진`
+    image.referrerPolicy = 'no-referrer'
+    image.decoding = 'async'
+    image.addEventListener('error', () => image.replaceWith(createImageFallback()), { once: true })
+    preview.appendChild(image)
+  } else {
+    preview.appendChild(createImageFallback())
+  }
+
+  const title = document.createElement('strong')
+  title.textContent = name
+  preview.appendChild(title)
+  return preview
+}
+
+function openPlacePreview(
+  marker: L.Marker,
+  latLng: L.LatLngTuple,
+  placeName: string,
+  imageUrl: string | null,
+) {
+  if (!map) return
+
+  const mapSize = map.getSize()
+  const currentPoint = map.latLngToContainerPoint(latLng)
+  const direction: L.Direction = currentPoint.y < mapSize.y / 2 ? 'bottom' : 'top'
+  const previewSpace = 136
+  const markerSpace = 32
+  const horizontalSpace = 72
+
+  map.panInside(latLng, {
+    paddingTopLeft: L.point(horizontalSpace, direction === 'bottom' ? markerSpace : previewSpace),
+    paddingBottomRight: L.point(
+      horizontalSpace,
+      direction === 'bottom' ? previewSpace : markerSpace,
+    ),
+    animate: false,
+  })
+
+  const safePoint = map.latLngToContainerPoint(latLng)
+  const minCenterX = horizontalSpace
+  const maxCenterX = Math.max(minCenterX, mapSize.x - horizontalSpace)
+  const clampedCenterX = Math.min(Math.max(safePoint.x, minCenterX), maxCenterX)
+  const horizontalOffset = Math.round(clampedCenterX - safePoint.x)
+
+  marker.unbindTooltip()
+  marker
+    .bindTooltip(createPlacePreview(placeName, imageUrl), {
+      permanent: false,
+      direction,
+      offset: L.point(horizontalOffset, direction === 'bottom' ? 18 : -20),
+      className: 'place-preview-tooltip',
+    })
+    .openTooltip()
 }
 
 function initMap() {
@@ -70,10 +142,10 @@ function updateMarkersAndLines() {
     const placeName = props.places[idx] || ''
     const icon = createNumberedIcon(idx + 1)
 
-    const marker = L.marker(latLng, { icon }).bindTooltip(placeName, {
-      permanent: false,
-      direction: 'top',
-    })
+    const imageUrl = props.images[idx] ?? null
+    const marker = L.marker(latLng, { icon })
+    marker.on('mouseover', () => openPlacePreview(marker, latLng, placeName, imageUrl))
+    marker.on('mouseout', () => marker.closeTooltip())
 
     markerGroup!.addLayer(marker)
   })
@@ -94,7 +166,7 @@ function updateMarkersAndLines() {
 }
 
 watch(
-  () => props.coords,
+  () => [props.coords, props.places, props.images],
   () => {
     updateMarkersAndLines()
   },
@@ -128,6 +200,7 @@ onUnmounted(() => {
 }
 
 .leaflet-custom-marker {
+  pointer-events: none;
   width: 30px;
   height: 30px;
   display: grid;
@@ -152,7 +225,50 @@ onUnmounted(() => {
   border: none;
 }
 
-.static-map {
-  pointer-events: none;
+.place-preview-tooltip {
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(232, 214, 221, 0.92);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 10px 22px rgba(77, 53, 61, 0.18);
+}
+
+.leaflet-tooltip-top.place-preview-tooltip::before {
+  border-top-color: rgba(255, 255, 255, 0.96) !important;
+}
+
+.leaflet-tooltip-bottom.place-preview-tooltip::before {
+  border-bottom-color: rgba(255, 255, 255, 0.96) !important;
+}
+
+.map-place-preview {
+  width: 128px;
+  display: grid;
+}
+
+.map-place-preview img,
+.map-place-image-fallback {
+  width: 128px;
+  height: 72px;
+  object-fit: cover;
+}
+
+.map-place-image-fallback {
+  display: grid;
+  place-items: center;
+  background: #f2efed;
+  color: #95858a;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.map-place-preview strong {
+  overflow: hidden;
+  padding: 9px 10px;
+  color: #55474a;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

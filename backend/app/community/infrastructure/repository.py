@@ -41,11 +41,12 @@ class CommunityRepository:
             if profile_id
             else False
         )
+        course_like_count = func.coalesce(like_counts.c.like_count, 0).label("course_like_count")
         return (
             select(
                 CommunityPost,
                 DateCourse,
-                func.coalesce(like_counts.c.like_count, 0),
+                course_like_count,
                 liked,
             )
             .join(DateCourse, DateCourse.id == CommunityPost.date_course_id)
@@ -87,7 +88,7 @@ class CommunityRepository:
         total = await self.session.scalar(
             select(func.count()).select_from(query.order_by(None).subquery())
         )
-        like_count_expression = query.selected_columns[2]
+        like_count_expression = query.selected_columns.course_like_count
         if criteria.sort.value == "POPULAR":
             query = query.order_by(
                 like_count_expression.desc(),

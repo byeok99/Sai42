@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDateStore } from '@/stores/dateStore'
 import BaseButton from './BaseButton.vue'
+import type { District, SpaceType, TimeSlot } from '@/types/api/course'
 
 const store = useDateStore()
 const router = useRouter()
@@ -14,6 +15,24 @@ const answersForKey = computed(() =>
 const progressWidth = computed(
   () => `${((store.surveyStep + 1) / store.surveyStepsList.length) * 100}%`,
 )
+const timeOptions: Array<{ value: TimeSlot; emoji: string; label: string; time: string }> = [
+  { value: 'MORNING', emoji: '🌤️', label: '오전', time: '09:00부터' },
+  { value: 'AFTERNOON', emoji: '☀️', label: '오후', time: '14:00부터' },
+  { value: 'FULL_DAY', emoji: '💞', label: '종일', time: '10:00부터' },
+]
+const districtOptions: Array<{ value: District; label: string }> = [
+  { value: 'DONG_GU', label: '동구' },
+  { value: 'JUNG_GU', label: '중구' },
+  { value: 'SEO_GU', label: '서구' },
+  { value: 'YUSEONG_GU', label: '유성구' },
+  { value: 'DAEDEOK_GU', label: '대덕구' },
+  { value: 'ANY', label: '대전 어디든' },
+]
+const spaceOptions: Array<{ value: SpaceType; emoji: string; label: string }> = [
+  { value: 'ANY', emoji: '✨', label: '상관없어요' },
+  { value: 'INDOOR', emoji: '🏠', label: '실내 중심' },
+  { value: 'OUTDOOR', emoji: '🌳', label: '실외 중심' },
+]
 
 async function handleNextSurveyStep() {
   await store.nextSurveyStep()
@@ -44,44 +63,56 @@ async function handleNextSurveyStep() {
         </div>
         <div v-if="store.loading" class="ai-loading" aria-live="polite">
           <div class="orbit"><span>💞</span><i>✨</i><b>🌷</b></div>
-          <strong>사이봇이 두 분의 코스를 고르는 중이에요</strong>
-          <p>대전 날씨 정보를 받아오고 있어요. 잠시만 기다려 주세요.</p>
+          <strong>42봇이 두 분의 코스를 고르는 중이에요</strong>
+          <p>날씨와 취향, 이동 동선을 살펴보고 있어요.</p>
         </div>
-        <div v-else-if="currentStepData.kind === 'datetime'" class="form-options">
-          <label>
-            날짜
-            <input
-              v-model="store.courseDate"
-              type="date"
-              :min="store.minimumCourseDate"
-              :max="store.maximumCourseDate"
-            />
-          </label>
-          <label>
-            시작 시각
-            <input v-model="store.startTime" type="time" min="19:00" />
-          </label>
+        <div v-else-if="currentStepData.kind === 'datetime'" class="schedule-options">
+          <div class="today-chip">
+            <span>데이트 날짜</span>
+            <strong>{{ store.courseDate }}</strong>
+            <small>오늘 날짜로 코스를 만들어요</small>
+          </div>
+          <div class="choice-label">시간대</div>
+          <div class="time-options">
+            <button
+              v-for="option in timeOptions"
+              :key="option.value"
+              type="button"
+              :class="{ selected: store.timeSlot === option.value }"
+              @click="store.selectTimeSlot(option.value)"
+            >
+              <b>{{ option.emoji }}</b>
+              <strong>{{ option.label }}</strong>
+              <small>{{ option.time }}</small>
+            </button>
+          </div>
         </div>
-        <div v-else-if="currentStepData.kind === 'location'" class="form-options">
-          <label>
-            지역
-            <select v-model="store.district">
-              <option value="DONG_GU">동구</option>
-              <option value="JUNG_GU">중구</option>
-              <option value="SEO_GU">서구</option>
-              <option value="YUSEONG_GU">유성구</option>
-              <option value="DAEDEOK_GU">대덕구</option>
-              <option value="ANY">대전 어디든</option>
-            </select>
-          </label>
-          <label>
-            공간 선호
-            <select v-model="store.spaceType">
-              <option value="ANY">상관없어요</option>
-              <option value="INDOOR">실내 중심</option>
-              <option value="OUTDOOR">실외 중심</option>
-            </select>
-          </label>
+        <div v-else-if="currentStepData.kind === 'location'" class="location-options">
+          <div class="choice-label">데이트 지역</div>
+          <div class="district-options">
+            <button
+              v-for="option in districtOptions"
+              :key="option.value"
+              type="button"
+              :class="{ selected: store.district === option.value }"
+              @click="store.district = option.value"
+            >
+              {{ option.label }}
+            </button>
+          </div>
+          <div class="choice-label space-label">공간 선호</div>
+          <div class="space-options">
+            <button
+              v-for="option in spaceOptions"
+              :key="option.value"
+              type="button"
+              :class="{ selected: store.spaceType === option.value }"
+              @click="store.spaceType = option.value"
+            >
+              <span>{{ option.emoji }}</span
+              >{{ option.label }}
+            </button>
+          </div>
         </div>
         <div v-else class="opts">
           <button
@@ -217,6 +248,112 @@ async function handleNextSurveyStep() {
 .form-options {
   display: grid;
   gap: 10px;
+}
+
+.schedule-options,
+.location-options {
+  display: grid;
+}
+
+.today-chip {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 3px 10px;
+  padding: 13px 14px;
+  border: 1px solid #f1dce1;
+  border-radius: 15px;
+  background: linear-gradient(135deg, #fff4f6, #f7f2ff);
+}
+
+.today-chip span,
+.choice-label {
+  color: #a66f7c;
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.today-chip strong {
+  grid-row: 1 / 3;
+  grid-column: 2;
+  color: #d45d75;
+  font-size: 12px;
+}
+
+.today-chip small {
+  color: var(--muted);
+  font-size: 8px;
+}
+
+.choice-label {
+  margin: 12px 2px 7px;
+}
+
+.time-options,
+.space-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 7px;
+}
+
+.time-options button {
+  min-height: 82px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 3px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fffdfa;
+}
+
+.time-options button b {
+  font-size: 21px;
+}
+
+.time-options button strong {
+  font-size: 11px;
+}
+
+.time-options button small {
+  color: var(--muted);
+  font-size: 7px;
+}
+
+.district-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 7px;
+}
+
+.district-options button,
+.space-options button {
+  min-height: 42px;
+  padding: 8px 5px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: #fffdfa;
+  color: var(--ink);
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.space-options button {
+  display: grid;
+  gap: 3px;
+}
+
+.space-options button span {
+  font-size: 16px;
+}
+
+.time-options button.selected,
+.district-options button.selected,
+.space-options button.selected {
+  border-color: var(--pink);
+  background: linear-gradient(145deg, #fff0f3, #f5efff);
+  box-shadow: 0 7px 14px rgba(216, 91, 120, 0.12);
+  color: #d6536b;
 }
 
 .ai-loading {

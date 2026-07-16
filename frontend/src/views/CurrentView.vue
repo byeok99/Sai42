@@ -4,6 +4,7 @@ import { useDateStore } from '@/stores/dateStore'
 import BaseCard from '@/components/common/BaseCard.vue'
 import BaseButton from '@/components/common/BaseButton.vue'
 import LeafletMap from '@/components/map/LeafletMap.vue'
+import PageHeader from '@/components/common/PageHeader.vue'
 
 const showMapModal = ref(false)
 const scrollArea = ref<HTMLElement | null>(null)
@@ -69,13 +70,10 @@ onMounted(() => {
 
 <template>
   <div class="current-view">
-    <header class="top-bar">
-      <div>
-        <p class="section-label">TODAY</p>
-        <h2>현재 데이트</h2>
-      </div>
+    <PageHeader eyebrow="TODAY'S DATE" title="현재 데이트">
       <span v-if="store.activeCourse" class="live-badge">● 진행 중</span>
-    </header>
+      <span v-else class="ready-badge">코스 준비 전</span>
+    </PageHeader>
 
     <div
       ref="scrollArea"
@@ -94,10 +92,35 @@ onMounted(() => {
       </div>
       <!-- Empty State -->
       <div v-if="!store.activeCourse" class="empty-state">
-        <div class="empty-emoji">🗺️</div>
-        <h3>아직 오늘의 코스가 없어요</h3>
-        <p>사이봇과 대화해서 두 분만의 코스를 만들어 보세요.</p>
-        <BaseButton variant="primary" @click="openCourseSurvey"> 코스 만들기 </BaseButton>
+        <BaseCard class="empty-hero">
+          <div class="empty-map-visual" aria-hidden="true">
+            <span class="route-line"></span>
+            <i class="route-point point-one"><span>1</span></i>
+            <i class="route-point point-two"><span>2</span></i>
+            <i class="route-point point-three"><span>3</span></i>
+            <b>💗</b>
+          </div>
+          <span class="empty-kicker">YOUR NEXT DATE</span>
+          <h3>오늘의 둘을 위한 코스를<br />아직 준비하지 않았어요</h3>
+          <p>날씨와 취향, 이동 방법을 알려주면 42봇이 세 장소를 자연스럽게 이어드려요.</p>
+          <BaseButton variant="primary" full @click="openCourseSurvey">
+            오늘의 코스 만들기 →
+          </BaseButton>
+        </BaseCard>
+
+        <section class="empty-benefits" aria-label="데이트 코스 준비 과정">
+          <div><span>01</span><b>취향 확인</b><small>둘이 좋아하는 분위기</small></div>
+          <div><span>02</span><b>동선 설계</b><small>가까운 세 장소 연결</small></div>
+          <div><span>03</span><b>실시간 기록</b><small>하트와 방문 완료</small></div>
+        </section>
+
+        <BaseCard class="date-tip-card">
+          <div class="tip-icon">✨</div>
+          <div>
+            <span>사이42 TIP</span>
+            <strong>완료한 데이트는 추억 캘린더에 자동으로 기록돼요.</strong>
+          </div>
+        </BaseCard>
       </div>
 
       <!-- Active Course Body -->
@@ -222,6 +245,7 @@ onMounted(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
+  background: linear-gradient(180deg, #fffaf7 0%, #fff7f9 60%, #f7f3ff 100%);
 }
 
 .pull-indicator {
@@ -238,30 +262,6 @@ onMounted(() => {
   padding: 15px 0;
 }
 
-.top-bar {
-  height: 72px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 14px 18px 10px;
-  background: var(--cream);
-  border-bottom: 1px solid var(--line);
-}
-
-.section-label {
-  margin: 0;
-  color: #e75d74;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-}
-
-.top-bar h2 {
-  margin: 3px 0 0;
-  font-size: 21px;
-  font-weight: 800;
-}
-
 .live-badge {
   padding: 8px 10px;
   border-radius: 12px;
@@ -271,26 +271,222 @@ onMounted(() => {
   font-weight: 800;
 }
 
+.ready-badge {
+  padding: 8px 10px;
+  border-radius: 999px;
+  background: #f1eaff;
+  color: #75648f;
+  font-size: 8px;
+  font-weight: 900;
+}
+
 .empty-state {
-  text-align: center;
-  padding: 65px 24px;
+  display: grid;
+  gap: 12px;
+  padding: 16px 0 8px;
 }
 
-.empty-emoji {
-  font-size: 55px;
+.empty-hero {
+  position: relative;
+  padding: 176px 20px 20px;
+  overflow: hidden;
+  border: 1px solid rgba(239, 207, 218, 0.8);
+  background:
+    radial-gradient(circle at 86% 8%, rgba(255, 255, 255, 0.78), transparent 24%),
+    linear-gradient(145deg, #fff0e0, #ffe9ef 52%, #eee7ff);
+  box-shadow: 0 16px 34px rgba(117, 76, 97, 0.14);
 }
 
-.empty-state h3 {
-  margin: 13px 0 7px;
-  font-size: 16px;
-  font-weight: 800;
+.empty-map-visual {
+  position: absolute;
+  top: 16px;
+  right: 18px;
+  left: 18px;
+  height: 142px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 19px;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.55) 1px, transparent 1px),
+    linear-gradient(rgba(255, 255, 255, 0.55) 1px, transparent 1px),
+    linear-gradient(135deg, #e8f2eb, #eae6f6);
+  background-size:
+    28px 28px,
+    28px 28px,
+    auto;
 }
 
-.empty-state p {
+.empty-map-visual::before,
+.empty-map-visual::after {
+  position: absolute;
+  width: 250px;
+  height: 60px;
+  border: 8px solid rgba(255, 255, 255, 0.72);
+  border-radius: 50%;
+  content: '';
+  transform: rotate(-12deg);
+}
+
+.empty-map-visual::before {
+  top: 42px;
+  left: -35px;
+}
+
+.empty-map-visual::after {
+  right: -64px;
+  bottom: -12px;
+  transform: rotate(18deg);
+}
+
+.route-line {
+  position: absolute;
+  top: 67px;
+  right: 68px;
+  left: 55px;
+  height: 3px;
+  border-top: 3px dashed rgba(220, 82, 106, 0.48);
+  transform: rotate(-7deg);
+}
+
+.route-point {
+  position: absolute;
+  z-index: 2;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 3px solid #fff;
+  border-radius: 50% 50% 50% 7px;
+  background: linear-gradient(145deg, var(--pink), #a187dc);
+  box-shadow: 0 7px 14px rgba(95, 62, 84, 0.2);
+  color: #fff;
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 900;
+  transform: rotate(-45deg);
+}
+
+.route-point span {
+  display: block;
+  transform: rotate(45deg);
+}
+
+.point-one {
+  top: 74px;
+  left: 46px;
+}
+
+.point-two {
+  top: 43px;
+  left: 48%;
+}
+
+.point-three {
+  top: 57px;
+  right: 48px;
+}
+
+.empty-map-visual b {
+  position: absolute;
+  right: 14px;
+  bottom: 10px;
+  font-size: 24px;
+}
+
+.empty-kicker {
+  color: #c55f76;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.13em;
+}
+
+.empty-hero h3 {
+  margin: 5px 0 7px;
+  font-size: 19px;
+  font-weight: 900;
+  line-height: 1.38;
+}
+
+.empty-hero p {
   color: var(--muted);
-  font-size: 11px;
-  line-height: 1.5;
-  margin-bottom: 20px;
+  font-size: 10px;
+  line-height: 1.6;
+  margin: 0 0 15px;
+}
+
+.empty-benefits {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.empty-benefits div {
+  min-width: 0;
+  padding: 13px 9px;
+  border: 1px solid rgba(235, 225, 230, 0.84);
+  border-radius: 17px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 8px 18px rgba(87, 57, 65, 0.06);
+  text-align: center;
+}
+
+.empty-benefits span,
+.empty-benefits b,
+.empty-benefits small {
+  display: block;
+}
+
+.empty-benefits span {
+  color: #d5647c;
+  font-size: 8px;
+  font-weight: 900;
+}
+
+.empty-benefits b {
+  margin: 5px 0 3px;
+  font-size: 10px;
+}
+
+.empty-benefits small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 7px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.date-tip-card {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 13px 15px;
+  border: 1px solid rgba(220, 209, 255, 0.7);
+  background: linear-gradient(135deg, #fff, #f4efff);
+}
+
+.tip-icon {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  flex: none;
+  place-items: center;
+  border-radius: 13px;
+  background: #eee7ff;
+}
+
+.date-tip-card span {
+  display: block;
+  color: #8c72b5;
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+}
+
+.date-tip-card strong {
+  display: block;
+  margin-top: 3px;
+  font-size: 9px;
+  line-height: 1.45;
 }
 
 .active-body {

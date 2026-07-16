@@ -1,9 +1,11 @@
 <script setup lang="ts">
+
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDateStore } from '@/stores/dateStore'
 import BaseCard from '@/components/common/BaseCard.vue'
 import LeafletMap from '@/components/map/LeafletMap.vue'
+import PageHeader from '@/components/common/PageHeader.vue'
 import { formatDistrict } from '@/utils/district'
 
 const store = useDateStore()
@@ -69,6 +71,69 @@ const scrollArea = ref<HTMLElement | null>(null)
 const pullDistance = ref(0)
 const pullStartY = ref<number | null>(null)
 const refreshing = ref(false)
+const liveSlider = ref<HTMLDivElement | null>(null)
+const activeLiveSlide = ref(0)
+let liveSlideTimer: number | null = null
+
+function stopLiveSlide() {
+  if (liveSlideTimer !== null) {
+    window.clearInterval(liveSlideTimer)
+    liveSlideTimer = null
+  }
+}
+
+function goToLiveSlide(index: number, behavior: ScrollBehavior = 'smooth') {
+  const slider = liveSlider.value
+  const slides = slider?.querySelectorAll<HTMLElement>('.live-slide')
+  const slide = slides?.[index]
+  if (!slider || !slide) return
+  activeLiveSlide.value = index
+  const centeredLeft =
+    slide.offsetLeft - slider.offsetLeft - (slider.clientWidth - slide.offsetWidth) / 2
+  slider.scrollTo({ left: centeredLeft, behavior })
+}
+
+function startLiveSlide() {
+  stopLiveSlide()
+  if (rankTab.value !== 'all' || store.featuredRankings.length < 2) return
+  liveSlideTimer = window.setInterval(() => {
+    goToLiveSlide((activeLiveSlide.value + 1) % store.featuredRankings.length)
+  }, 3600)
+}
+
+function syncLiveSlide() {
+  const slider = liveSlider.value
+  const slides = slider?.querySelectorAll<HTMLElement>('.live-slide')
+  if (!slider || !slides?.length) return
+  const index = Array.from(slides).reduce(
+    (closest, slide, slideIndex) =>
+      Math.abs(
+        slide.offsetLeft -
+          slider.offsetLeft -
+          (slider.clientWidth - slide.offsetWidth) / 2 -
+          slider.scrollLeft,
+      ) <
+      Math.abs(
+        slides[closest]!.offsetLeft -
+          slider.offsetLeft -
+          (slider.clientWidth - slides[closest]!.offsetWidth) / 2 -
+          slider.scrollLeft,
+      )
+        ? slideIndex
+        : closest,
+    0,
+  )
+  activeLiveSlide.value = index
+}
+
+function resumeLiveSlide() {
+  startLiveSlide()
+}
+
+function selectLiveSlide(index: number) {
+  goToLiveSlide(index)
+  startLiveSlide()
+}
 
 function startEdit(postId: string, comment: string) {
   editingId.value = postId
@@ -108,7 +173,7 @@ async function refreshRankings() {
   if (rankTab.value === 'masters') {
     await store.loadMasters()
   } else {
-    await store.loadRankings(currentPage.value)
+    await Promise.all([store.loadRankings(currentPage.value), store.loadFeaturedRankings()])
     const lastPage = Math.max(1, store.rankingMeta?.totalPages ?? 1)
     if (currentPage.value > lastPage) {
       currentPage.value = lastPage
@@ -162,6 +227,7 @@ function endPull() {
   if (shouldRefresh) void refreshRankings()
 }
 
+
 function selectRankTab(tab: 'all' | 'masters') {
   if (rankTab.value === tab) return
   rankTab.value = tab
@@ -169,17 +235,14 @@ function selectRankTab(tab: 'all' | 'masters') {
   if (tab === 'masters') void store.loadMasters()
   else void store.loadRankings(currentPage.value)
 }
+
 </script>
 
 <template>
   <div class="ranking-view">
-    <header class="top-bar">
-      <div>
-        <p class="section-label">COMMUNITY</p>
-        <h2>데이트 랭킹보드</h2>
-      </div>
+    <PageHeader eyebrow="COMMUNITY" title="데이트 랭킹보드">
       <button class="help-btn" @click="showHelp">?</button>
-    </header>
+    </PageHeader>
 
     <div
       ref="scrollArea"
@@ -196,8 +259,57 @@ function selectRankTab(tab: 'all' | 'masters') {
       >
         {{ refreshing ? '랭킹을 새로 불러오는 중…' : '놓으면 새로고침' }}
       </div>
+      <section
+        v-if="rankTab === 'all' && store.featuredRankings.length"
+        class="live-ranking"
+        aria-label="실시간 인기 코스 상위 3개"
+      >
+        <div class="live-ranking-head">
+          <div>
+            <span><i></i> LIVE COURSE</span>
+            <strong>지금 가장 사랑받는 코스</strong>
+            <p>커플들이 가장 많이 하트를 보낸 데이트예요.</p>
+          </div>
+          <em>TOP 3</em>
+        </div>
+        <div
+          ref="liveSlider"
+          class="live-slider"
+          @scroll.passive="syncLiveSlide"
+          @mouseenter="stopLiveSlide"
+          @mouseleave="resumeLiveSlide"
+          @touchstart.passive="stopLiveSlide"
+          @touchend.passive="resumeLiveSlide"
+        >
+          <article
+            v-for="(item, index) in store.featuredRankings"
+            :key="item.postId"
+            :class="['live-slide', `live-rank-${index + 1}`]"
+          >
+            <div class="live-rank-number">0{{ index + 1 }}</div>
+            <span>{{ formatDistrict(item.mainDistrict) }}</span>
+            <h3>{{ item.courseTitle }}</h3>
+            <p>by {{ item.authorNickname }}</p>
+            <div>
+              <strong>♥ {{ item.courseLikeCount }}</strong>
+              <small>데이트 코스 좋아요</small>
+            </div>
+          </article>
+        </div>
+        <div class="live-indicators" aria-label="인기 코스 슬라이드 위치">
+          <button
+            v-for="(_, index) in store.featuredRankings"
+            :key="index"
+            type="button"
+            :class="{ active: activeLiveSlide === index }"
+            :aria-label="`인기 코스 ${index + 1}번 보기`"
+            @click="selectLiveSlide(index)"
+          ></button>
+        </div>
+      </section>
+
       <!-- Master Banner Card -->
-      <BaseCard class="master-card">
+      <BaseCard v-else-if="rankTab === 'masters'" class="master-card">
         <span class="banner-label">이번 주 데이트 마스터</span>
         <h3>🏆 공개 코스 랭킹</h3>
         <p>완료한 데이트 코스를 다른 커플과 나눠요.</p>
@@ -295,6 +407,7 @@ function selectRankTab(tab: 'all' | 'masters') {
                 )
               "
               :places="store.selectedCommunityCourse.places.map((place) => place.place.name)"
+              :images="store.selectedCommunityCourse.places.map((place) => place.place.imageUrl)"
               static
             />
           </div>
@@ -390,31 +503,6 @@ function selectRankTab(tab: 'all' | 'masters') {
   background: linear-gradient(180deg, #fffaf7 0%, #fff7f9 46%, #f8f3ff 100%);
 }
 
-.top-bar {
-  height: 72px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 14px 18px 10px;
-  background: rgba(255, 250, 245, 0.94);
-  border-bottom: 1px solid rgba(238, 227, 224, 0.8);
-  backdrop-filter: blur(12px);
-}
-
-.section-label {
-  margin: 0;
-  color: #e75d74;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-}
-
-.top-bar h2 {
-  margin: 3px 0 0;
-  font-size: 21px;
-  font-weight: 800;
-}
-
 .help-btn {
   width: 36px;
   height: 36px;
@@ -437,7 +525,7 @@ function selectRankTab(tab: 'all' | 'masters') {
   background:
     radial-gradient(circle at 82% 18%, rgba(255, 255, 255, 0.28), transparent 24%),
     linear-gradient(135deg, #ff8397 0%, #cc79b5 48%, #8f7cd3 100%);
-  margin-top: 16px;
+  margin-top: 15px;
   box-shadow: 0 16px 32px rgba(153, 100, 157, 0.24);
 }
 
@@ -472,7 +560,7 @@ function selectRankTab(tab: 'all' | 'masters') {
   display: flex;
   gap: 4px;
   overflow-x: auto;
-  margin: 14px 0 16px;
+  margin: 12px 0 0;
   padding: 4px;
   border: 1px solid rgba(238, 227, 224, 0.9);
   border-radius: 15px;
@@ -506,12 +594,228 @@ function selectRankTab(tab: 'all' | 'masters') {
   box-shadow: 0 7px 14px rgba(225, 103, 134, 0.22);
 }
 
+.live-ranking {
+  position: relative;
+  margin-top: 15px;
+  padding: 17px 0 14px;
+  overflow: hidden;
+  border: 1px solid rgba(242, 176, 195, 0.72);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 96% 4%, rgba(255, 194, 212, 0.62), transparent 30%),
+    radial-gradient(circle at 0% 100%, rgba(255, 224, 233, 0.82), transparent 34%),
+    linear-gradient(145deg, #fff9fb, #fff0f5);
+  box-shadow: 0 16px 36px rgba(173, 88, 117, 0.15);
+}
+
+.live-ranking-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 0 17px 13px;
+  border-bottom: 1px solid rgba(239, 193, 206, 0.72);
+}
+
+.live-ranking-head span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #d45b74;
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.live-ranking-head span i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ef4764;
+  box-shadow: 0 0 0 4px rgba(239, 71, 100, 0.12);
+  animation: live-pulse 1.4s ease-in-out infinite;
+}
+
+.live-ranking-head strong {
+  display: block;
+  margin-top: 4px;
+  color: #533c45;
+  font-size: 17px;
+  letter-spacing: -0.035em;
+}
+
+.live-ranking-head p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 8px;
+}
+
+.live-ranking-head > em {
+  padding: 6px 8px;
+  border: 1px solid rgba(225, 104, 132, 0.24);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.76);
+  color: #cf5b74;
+  font-size: 7px;
+  font-style: normal;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.live-slider {
+  display: grid;
+  grid-auto-columns: 100%;
+  grid-auto-flow: column;
+  gap: 30px;
+  overflow-x: auto;
+  padding: 15px 18px 9px;
+  scroll-padding-inline: 18px;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+}
+
+.live-slider::-webkit-scrollbar {
+  display: none;
+}
+
+.live-slide {
+  position: relative;
+  min-height: 172px;
+  padding: 22px;
+  overflow: hidden;
+  border: 1px solid rgba(239, 170, 190, 0.7);
+  border-radius: 21px;
+  background:
+    radial-gradient(circle at 92% 14%, rgba(255, 255, 255, 0.88), transparent 25%),
+    linear-gradient(145deg, #ffe3ec, #fff5f8);
+  box-shadow:
+    0 12px 25px rgba(154, 72, 98, 0.13),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  scroll-snap-align: center;
+}
+
+.live-slide::after {
+  position: absolute;
+  right: -29px;
+  bottom: -43px;
+  width: 128px;
+  height: 128px;
+  border: 26px solid rgba(255, 255, 255, 0.38);
+  border-radius: 50%;
+  content: '';
+}
+
+.live-slide.live-rank-2 {
+  background:
+    radial-gradient(circle at 92% 14%, rgba(255, 255, 255, 0.82), transparent 25%),
+    linear-gradient(145deg, #f9dfe9, #fff2f6);
+}
+
+.live-slide.live-rank-3 {
+  background:
+    radial-gradient(circle at 92% 14%, rgba(255, 255, 255, 0.82), transparent 25%),
+    linear-gradient(145deg, #ffe8ed, #fff7f4);
+}
+
+.live-rank-number {
+  position: absolute;
+  top: 16px;
+  right: 19px;
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(216, 111, 141, 0.14);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.36);
+  color: rgba(174, 73, 104, 0.28);
+  font-size: 24px;
+  font-weight: 900;
+}
+
+.live-slide > span {
+  color: #bd6077;
+  font-size: 8px;
+  font-weight: 900;
+}
+
+.live-slide h3 {
+  max-width: 78%;
+  margin: 9px 0 5px;
+  overflow: hidden;
+  color: #4e3941;
+  font-size: 17px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.live-slide > p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 8px;
+}
+
+.live-slide > div:last-child {
+  position: absolute;
+  bottom: 21px;
+  left: 22px;
+  z-index: 1;
+}
+
+.live-slide > div:last-child strong,
+.live-slide > div:last-child small {
+  display: block;
+}
+
+.live-slide > div:last-child strong {
+  color: #cf4f6b;
+  font-size: 16px;
+}
+
+.live-slide > div:last-child small {
+  margin-top: 2px;
+  color: #866e74;
+  font-size: 7px;
+}
+
+.live-indicators {
+  display: flex;
+  justify-content: center;
+  gap: 5px;
+  padding-top: 2px;
+}
+
+.live-indicators button {
+  width: 5px;
+  height: 5px;
+  padding: 0;
+  border-radius: 999px;
+  background: #d9cdd1;
+  transition:
+    width 0.2s ease,
+    background 0.2s ease;
+}
+
+.live-indicators button.active {
+  width: 18px;
+  background: linear-gradient(90deg, var(--pink), #9b82d6);
+}
+
+@keyframes live-pulse {
+  50% {
+    opacity: 0.45;
+    transform: scale(0.82);
+  }
+}
+
 .ranking-section-head {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
   gap: 12px;
-  margin: 0 2px 11px;
+  margin: 15px 2px 11px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(223, 209, 214, 0.82);
 }
 
 .ranking-section-head span {

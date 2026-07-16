@@ -1,3 +1,4 @@
+
 import { ApiRequestError } from '@/services/api/client'
 import { weatherRepository, type WeatherQuery } from '@/services/repositories/weatherRepository'
 import type { WeatherSummaryDto } from '@/types/api/course'
@@ -19,4 +20,5 @@ export const weatherService = {
     }
     return null
   },
+
 }

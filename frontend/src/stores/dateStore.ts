@@ -38,34 +38,26 @@ const transportationByOption: Record<string, CreateChatSessionRequestDto['transp
   '🚶 도보 중심': 'WALK',
   '🚌 대중교통': 'PUBLIC_TRANSIT',
   '🚗 자가용': 'CAR',
-  '🎲 그날그날 달라요': 'FLEXIBLE',
+  '✨ 상관없어요': 'FLEXIBLE',
 }
 const densityByOption: Record<string, CreateChatSessionRequestDto['scheduleDensity']> = {
-  '여유롭게 오래': 'RELAXED',
-  '적당히 알차게': 'NORMAL',
-  '짧고 촘촘하게': 'TIGHT',
+  '⚡ 타이트하게': 'TIGHT',
+  '☁️ 널널하게': 'RELAXED',
 }
 
 function defaultCourseSchedule() {
+  return { date: todayInSeoul(), startTime: '10:00' }
+}
+
+function todayInSeoul() {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Seoul',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
   }).formatToParts(new Date())
   const value = (type: string) => parts.find((part) => part.type === type)?.value ?? ''
-  const minutes = Number(value('hour')) * 60 + Number(value('minute'))
-  const date = new Date(
-    Date.UTC(
-      Number(value('year')),
-      Number(value('month')) - 1,
-      Number(value('day')) + (minutes >= 19 * 60 ? 1 : 0),
-    ),
-  )
-  return { date: date.toISOString().slice(0, 10), startTime: '19:00' }
+  return `${value('year')}-${value('month')}-${value('day')}`
 }
 
 function maximumWeatherDate() {
@@ -98,8 +90,10 @@ export const useDateStore = defineStore('dateStore', () => {
   const defaultSchedule = defaultCourseSchedule()
   const courseDate = ref(defaultSchedule.date)
   const startTime = ref(defaultSchedule.startTime)
+
   const minimumCourseDate = ref(defaultSchedule.date)
   const maximumCourseDate = ref(maximumWeatherDate())
+
   const district = ref<CreateChatSessionRequestDto['district']>('YUSEONG_GU')
   const spaceType = ref<CreateChatSessionRequestDto['spaceType']>('ANY')
   const showSurvey = ref(false)
@@ -107,6 +101,7 @@ export const useDateStore = defineStore('dateStore', () => {
   const toastMessage = ref('')
   const toastVisible = ref(false)
   const loading = ref(false)
+  const chatLoading = ref(false)
   const sessionId = ref<string | null>(null)
   const draftId = ref<string | null>(null)
   const draftVersion = ref<number | null>(null)
@@ -114,16 +109,21 @@ export const useDateStore = defineStore('dateStore', () => {
     title: string
     places: string[]
     coords: [number, number][]
+    images: Array<string | null>
     weather: WeatherSummaryDto | null
   }>({
     title: '',
     places: [],
     coords: [],
+    images: [],
     weather: null,
   })
   const messages = ref<Array<{ role: 'bot' | 'user'; content: string }>>([])
   const activeCourse = ref<DateCourseDto | null>(null)
+  const todayWeather = ref<WeatherSummaryDto | null>(null)
+  const weatherLoading = ref(false)
   const rankings = ref<CommunityPostSummaryDto[]>([])
+  const featuredRankings = ref<CommunityPostSummaryDto[]>([])
   const rankingMeta = ref<PageMetaDto | null>(null)
   const masters = ref<DateMasterDto[]>([])
   const selectedCommunityCourse = ref<CommunityPostDetailDto | null>(null)
@@ -140,8 +140,8 @@ export const useDateStore = defineStore('dateStore', () => {
   }> = [
     {
       emoji: '📅',
-      title: '언제, 어디서 만날까요?',
-      desc: '코스 시간과 출발 지역을 먼저 정해요.',
+      title: '오늘 언제 만날까요?',
+      desc: '오늘 일정에 맞는 시간대를 골라 주세요.',
       kind: 'datetime',
     },
     {
@@ -166,7 +166,7 @@ export const useDateStore = defineStore('dateStore', () => {
     },
     {
       emoji: '⏱️',
-      title: '오늘 일정의 밀도는?',
+      title: '오늘 일정은?',
       desc: '코스 간 이동과 머무는 시간을 조절해요.',
       key: 'density',
       single: true,
@@ -174,7 +174,7 @@ export const useDateStore = defineStore('dateStore', () => {
     },
     {
       emoji: '🚌',
-      title: '주로 어떻게 이동하나요?',
+      title: '이동 방식 선택',
       desc: '장소 사이의 거리를 조절해요.',
       key: 'move',
       single: true,
@@ -199,7 +199,14 @@ export const useDateStore = defineStore('dateStore', () => {
     draftId: string
     version: number
     title: string
-    places: Array<{ place: { name: string; latitude: number | null; longitude: number | null } }>
+    places: Array<{
+      place: {
+        name: string
+        latitude: number | null
+        longitude: number | null
+        imageUrl: string | null
+      }
+    }>
     weather: WeatherSummaryDto | null
   }) {
     draftId.value = draft.draftId
@@ -212,6 +219,7 @@ export const useDateStore = defineStore('dateStore', () => {
           ? [[item.place.latitude, item.place.longitude] as [number, number]]
           : [],
       ),
+      images: draft.places.map((item) => item.place.imageUrl),
       weather: draft.weather,
     }
   }
@@ -225,6 +233,7 @@ export const useDateStore = defineStore('dateStore', () => {
           ? [[item.place.latitude, item.place.longitude] as [number, number]]
           : [],
       ),
+      images: active.places.map((item) => item.place.imageUrl),
       weather: active.weather,
     }
   }
@@ -273,7 +282,8 @@ export const useDateStore = defineStore('dateStore', () => {
     sessionId.value = null
     draftId.value = null
     draftVersion.value = null
-    course.value = { title: '', places: [], coords: [], weather: null }
+    course.value = { title: '', places: [], coords: [], images: [], weather: null }
+    todayWeather.value = null
     messages.value = []
     activeCourse.value = null
     authMode.value = 'enter'
@@ -304,6 +314,11 @@ export const useDateStore = defineStore('dateStore', () => {
         : [...surveyAnswers.value[key], option]
   }
 
+  function selectTimeSlot(value: CreateChatSessionRequestDto['timeSlot']) {
+    timeSlot.value = value
+    startTime.value = value === 'MORNING' ? '09:00' : value === 'AFTERNOON' ? '14:00' : '10:00'
+  }
+
   async function createChatSession() {
     const activities = [
       ...new Set(
@@ -326,7 +341,7 @@ export const useDateStore = defineStore('dateStore', () => {
     const response = await chatService.createSession(
       {
         date: courseDate.value,
-        timeSlot: 'AFTERNOON',
+        timeSlot: timeSlot.value,
         startTime: startTime.value,
         district: district.value,
         spaceType: spaceType.value,
@@ -352,6 +367,7 @@ export const useDateStore = defineStore('dateStore', () => {
 
   async function nextSurveyStep() {
     const step = surveyStepsList[surveyStep.value]!
+
     if (step.kind === 'datetime') {
       if (!courseDate.value || !startTime.value)
         return triggerToast('날짜와 시작 시각을 선택해 주세요.')
@@ -384,10 +400,12 @@ export const useDateStore = defineStore('dateStore', () => {
     surveyStep.value = 0
     surveyDone.value = false
     surveyAnswers.value = { pref: [], mood: [], density: [], move: [] }
+    courseDate.value = todayInSeoul()
+    selectTimeSlot('FULL_DAY')
     sessionId.value = null
     draftId.value = null
     draftVersion.value = null
-    course.value = { title: '', places: [], coords: [], weather: null }
+    course.value = { title: '', places: [], coords: [], images: [], weather: null }
     messages.value = []
     showSurvey.value = true
   }
@@ -398,12 +416,12 @@ export const useDateStore = defineStore('dateStore', () => {
   }
 
   async function sendChatMessage(message: string) {
-    if (!message.trim()) return
+    if (!message.trim() || chatLoading.value) return
     if (!sessionId.value || !draftVersion.value) {
       triggerToast('먼저 성향 조사를 완료하고 AI 코스를 만들어 주세요.')
       return
     }
-    loading.value = true
+    chatLoading.value = true
     try {
       const response = await chatService.sendMessage(
         sessionId.value,
@@ -418,16 +436,17 @@ export const useDateStore = defineStore('dateStore', () => {
     } catch (error) {
       triggerToast(error instanceof Error ? error.message : '메시지 전송에 실패했습니다.')
     } finally {
-      loading.value = false
+      chatLoading.value = false
     }
   }
 
   async function sendQuickAction(quickAction: CourseEditAction) {
+    if (chatLoading.value) return
     if (!sessionId.value || !draftVersion.value) {
       triggerToast('먼저 성향 조사를 완료하고 AI 코스를 만들어 주세요.')
       return
     }
-    loading.value = true
+    chatLoading.value = true
     try {
       const response = await chatService.sendMessage(
         sessionId.value,
@@ -444,7 +463,7 @@ export const useDateStore = defineStore('dateStore', () => {
     } catch (error) {
       triggerToast(error instanceof Error ? error.message : '코스 수정에 실패했습니다.')
     } finally {
-      loading.value = false
+      chatLoading.value = false
     }
   }
 
@@ -476,6 +495,23 @@ export const useDateStore = defineStore('dateStore', () => {
     } catch (error) {
       if (error instanceof Error && !error.message.includes('다시 로그인'))
         triggerToast(error.message)
+    }
+  }
+  async function loadTodayWeather() {
+    if (weatherLoading.value) return
+    weatherLoading.value = true
+    try {
+      const headers = profileId.value && password.value ? authHeaders() : undefined
+      todayWeather.value = (
+        await weatherService.getWeather(
+          { date: todayInSeoul(), district: 'ANY', timeSlot: 'FULL_DAY' },
+          headers,
+        )
+      ).data
+    } catch {
+      todayWeather.value = null
+    } finally {
+      weatherLoading.value = false
     }
   }
   async function togglePlaceLike(coursePlaceId: string, hearted: boolean) {
@@ -511,19 +547,40 @@ export const useDateStore = defineStore('dateStore', () => {
       activeCourse.value = null
       showCommentModal.value = false
       triggerToast('데이트가 추억으로 저장됐어요 💌')
+      return true
     } catch (error) {
       triggerToast(error instanceof Error ? error.message : '데이트 종료에 실패했습니다.')
+      return false
     }
   }
   async function loadRankings(page?: number, sort: 'POPULAR' | 'LATEST' = 'POPULAR') {
     try {
       const headers = profileId.value && password.value ? authHeaders() : undefined
-      const params = page === undefined ? { sort } : { sort, page, size: 5 }
+      const params = page === undefined ? { sort, page: 1, size: 50 } : { sort, page, size: 5 }
       const response = await communityService.listPosts(params, headers)
       rankings.value = response.data ?? []
       rankingMeta.value = response.meta
     } catch (error) {
       triggerToast(error instanceof Error ? error.message : '랭킹을 불러오지 못했습니다.')
+    }
+  }
+  async function loadFeaturedRankings() {
+    try {
+      const headers = profileId.value && password.value ? authHeaders() : undefined
+      const response = await communityService.listPosts(
+        { sort: 'POPULAR', page: 1, size: 3 },
+        headers,
+      )
+      featuredRankings.value = [...(response.data ?? [])].sort(
+        (a, b) =>
+          b.courseLikeCount - a.courseLikeCount ||
+          b.publishedAt.localeCompare(a.publishedAt) ||
+          a.postId.localeCompare(b.postId),
+      )
+    } catch (error) {
+      triggerToast(
+        error instanceof Error ? error.message : '실시간 인기 코스를 불러오지 못했습니다.',
+      )
     }
   }
   async function likeRankItem(postId: string, liked: boolean, page = 1) {
@@ -532,6 +589,7 @@ export const useDateStore = defineStore('dateStore', () => {
         ? communityService.unlikePost(postId, authHeaders())
         : communityService.likePost(postId, authHeaders()))
       await loadRankings(page)
+      await loadFeaturedRankings()
     } catch (error) {
       triggerToast(error instanceof Error ? error.message : '좋아요 처리에 실패했습니다.')
     }
@@ -591,9 +649,14 @@ export const useDateStore = defineStore('dateStore', () => {
       triggerToast(error instanceof Error ? error.message : '코스 경로를 불러오지 못했습니다.')
     }
   }
-  async function loadHistory() {
+  async function loadHistory(params?: {
+    year?: number
+    month?: number
+    page?: number
+    size?: number
+  }) {
     try {
-      history.value = (await historyService.listMyDateCourses(authHeaders())).data ?? []
+      history.value = (await historyService.listMyDateCourses(authHeaders(), params)).data ?? []
     } catch (error) {
       if (error instanceof Error && !error.message.includes('다시 로그인'))
         triggerToast(error.message)
@@ -617,8 +680,10 @@ export const useDateStore = defineStore('dateStore', () => {
     surveyStepsList,
     courseDate,
     startTime,
+
     minimumCourseDate,
     maximumCourseDate,
+
     district,
     spaceType,
     showSurvey,
@@ -626,10 +691,14 @@ export const useDateStore = defineStore('dateStore', () => {
     toastMessage,
     toastVisible,
     loading,
+    chatLoading,
     course,
     messages,
     activeCourse,
+    todayWeather,
+    weatherLoading,
     rankings,
+    featuredRankings,
     rankingMeta,
     masters,
     selectedCommunityCourse,
@@ -639,6 +708,7 @@ export const useDateStore = defineStore('dateStore', () => {
     logout,
     fetchChatSession,
     toggleSurveyOption,
+    selectTimeSlot,
     nextSurveyStep,
     prevSurveyStep,
     startNewCourseSetup,
@@ -647,10 +717,12 @@ export const useDateStore = defineStore('dateStore', () => {
     sendQuickAction,
     decideCourse,
     loadCurrentCourse,
+    loadTodayWeather,
     togglePlaceLike,
     nextPlace,
     submitReview,
     loadRankings,
+    loadFeaturedRankings,
     likeRankItem,
     updateCommunityPost,
     deleteCommunityPost,

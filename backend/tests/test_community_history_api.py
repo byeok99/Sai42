@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 import app.models  # noqa: F401 - register full SQLAlchemy metadata
 from app.auth.infrastructure.models import UserProfile
 from app.common.domain.time import now_seoul
-from app.community.infrastructure.models import CommunityPost
+from app.community.infrastructure.models import CommunityLike, CommunityPost
 from app.config import Settings
 from app.course.infrastructure.models import DateCourse, DateCoursePlace
 from app.database import Base, get_database_session
@@ -191,6 +191,74 @@ class CommunityHistoryApiTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.owner_id, masters.json()["data"]["masters"][0]["profileId"])
         self.assertEqual(1, masters.json()["data"]["masters"][0]["receivedLikeCount"])
         self.assertEqual(0, unliked.json()["data"]["likeCount"])
+
+    async def test_popular_posts_are_ordered_by_course_like_count(self) -> None:
+        newer_course_id = str(uuid4())
+        newer_post_id = str(uuid4())
+        newer_timestamp = "2026-07-16T09:00:00+09:00"
+        async with self.sessions() as session:
+            session.add(
+                DateCourse(
+                    id=newer_course_id,
+                    profile_id=self.owner_id,
+                    chat_session_id=None,
+                    status="COMPLETED",
+                    source_type="AI_CHAT",
+                    source_course_id=None,
+                    title="좋아요 없는 최신 코스",
+                    date="2026-07-16",
+                    start_time="10:00",
+                    time_slot="FULL_DAY",
+                    main_district="YUSEONG_GU",
+                    space_type="ANY",
+                    moods_json='["QUIET"]',
+                    activities_json='["TOURISM"]',
+                    schedule_density="RELAXED",
+                    transportation="WALK",
+                    overall_comment="정렬 검증 코스입니다.",
+                    tags_json='["#정렬"]',
+                    weather_json=None,
+                    current_order_no=1,
+                    completion_comment="최신 코스입니다.",
+                    started_at=newer_timestamp,
+                    completed_at=newer_timestamp,
+                    created_at=newer_timestamp,
+                    updated_at=newer_timestamp,
+                )
+            )
+            session.add(
+                CommunityPost(
+                    id=newer_post_id,
+                    date_course_id=newer_course_id,
+                    author_profile_id=self.owner_id,
+                    author_nickname_snapshot="대전산책단",
+                    one_line_comment="좋아요 없는 최신 코스입니다.",
+                    status="PUBLISHED",
+                    published_at=newer_timestamp,
+                    updated_at=newer_timestamp,
+                    deleted_at=None,
+                )
+            )
+            session.add(
+                CommunityLike(
+                    id=str(uuid4()),
+                    profile_id=self.reader_id,
+                    community_post_id=self.post_id,
+                    created_at=newer_timestamp,
+                )
+            )
+            await session.commit()
+
+        async with self._client() as anonymous:
+            response = await anonymous.get(
+                "/api/v1/community/posts",
+                params={"sort": "POPULAR", "page": 1, "size": 5},
+            )
+
+        self.assertEqual(200, response.status_code, response.text)
+        posts = response.json()["data"]
+        self.assertEqual([self.post_id, newer_post_id], [post["postId"] for post in posts])
+        self.assertEqual([1, 0], [post["courseLikeCount"] for post in posts])
 
     async def test_owner_update_delete_and_idempotent_republish(self) -> None:
         key = str(uuid4())

@@ -54,7 +54,7 @@ function scrollToBottom() {
 }
 
 function handleSend() {
-  if (!chatInput.value.trim()) return
+  if (!chatInput.value.trim() || store.chatLoading) return
   void store.sendChatMessage(chatInput.value)
   chatInput.value = ''
   scrollToBottom()
@@ -63,6 +63,7 @@ function handleSend() {
 function handleQuickAction(
   action: 'CHANGE_CAFE' | 'ADD_NIGHT_VIEW' | 'REDUCE_ROUTE' | 'INCREASE_INDOOR',
 ) {
+  if (store.chatLoading) return
   void store.sendQuickAction(action)
   scrollToBottom()
 }
@@ -159,7 +160,12 @@ onMounted(async () => {
           <button class="small-btn" @click="triggerMapFit">전체보기</button>
         </div>
         <div class="map-container">
-          <LeafletMap :coords="displayedCoords" :places="displayedPlaces" static />
+          <LeafletMap
+            :coords="displayedCoords"
+            :places="displayedPlaces"
+            :images="hasCourseDraft ? store.course.images : []"
+            static
+          />
         </div>
       </BaseCard>
 
@@ -231,28 +237,32 @@ onMounted(async () => {
           <div v-for="(msg, idx) in store.messages" :key="idx" :class="['msg', msg.role]">
             <p v-html="msg.content"></p>
           </div>
+          <div v-if="store.chatLoading" class="msg bot pending-message" aria-live="polite">
+            <p><i></i><i></i><i></i><span>사이봇이 코스를 다듬고 있어요</span></p>
+          </div>
         </div>
         <div class="quick-options">
-          <button :disabled="store.loading" @click="handleQuickAction('CHANGE_CAFE')">
+          <button :disabled="store.chatLoading" @click="handleQuickAction('CHANGE_CAFE')">
             ☕ 카페로 변경
           </button>
-          <button :disabled="store.loading" @click="handleQuickAction('ADD_NIGHT_VIEW')">
+          <button :disabled="store.chatLoading" @click="handleQuickAction('ADD_NIGHT_VIEW')">
             🌙 야경 추가
           </button>
-          <button :disabled="store.loading" @click="handleQuickAction('REDUCE_ROUTE')">
+          <button :disabled="store.chatLoading" @click="handleQuickAction('REDUCE_ROUTE')">
             🚌 동선 줄이기
           </button>
-          <button :disabled="store.loading" @click="handleQuickAction('INCREASE_INDOOR')">
+          <button :disabled="store.chatLoading" @click="handleQuickAction('INCREASE_INDOOR')">
             ☂️ 실내 강화
           </button>
         </div>
         <div class="chat-input-row">
           <input
             v-model="chatInput"
+            :disabled="store.chatLoading"
             placeholder="예: 마지막은 야경으로 바꿔줘"
             @keydown.enter="handleSend"
           />
-          <button class="send-btn" @click="handleSend">➤</button>
+          <button class="send-btn" :disabled="store.chatLoading" @click="handleSend">➤</button>
         </div>
       </BaseCard>
 
@@ -276,7 +286,11 @@ onMounted(async () => {
           <button class="close-x-btn" @click="showMapModal = false">&times;</button>
         </div>
         <div class="modal-map-container" style="margin-bottom: 0">
-          <LeafletMap :coords="displayedCoords" :places="displayedPlaces" />
+          <LeafletMap
+            :coords="displayedCoords"
+            :places="displayedPlaces"
+            :images="hasCourseDraft ? store.course.images : []"
+          />
         </div>
       </div>
     </div>
@@ -782,6 +796,41 @@ onMounted(async () => {
   border-bottom-right-radius: 4px;
 }
 
+.pending-message p {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pending-message i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #d46b80;
+  animation: typing-dot 1s ease-in-out infinite;
+}
+
+.pending-message i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.pending-message i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+.pending-message span {
+  margin-left: 4px;
+  color: var(--muted);
+  font-size: 8px;
+}
+
+@keyframes typing-dot {
+  50% {
+    opacity: 0.35;
+    transform: translateY(-3px);
+  }
+}
+
 .quick-options {
   display: flex;
   gap: 6px;
@@ -802,6 +851,13 @@ onMounted(async () => {
   background: #fff;
   font-size: 9px;
   font-weight: 800;
+}
+
+.quick-options button:disabled,
+.send-btn:disabled,
+.chat-input-row input:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
 }
 
 .chat-input-row {

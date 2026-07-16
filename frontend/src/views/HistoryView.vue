@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useDateStore } from '@/stores/dateStore'
 import BaseCard from '@/components/common/BaseCard.vue'
+import BaseButton from '@/components/common/BaseButton.vue'
 import PageHeader from '@/components/common/PageHeader.vue'
 import { formatDistrict } from '@/utils/district'
 
@@ -10,6 +11,10 @@ const scrollArea = ref<HTMLElement | null>(null)
 const pullDistance = ref(0)
 const pullStartY = ref<number | null>(null)
 const refreshing = ref(false)
+const editPostId = ref<string | null>(null)
+const editCourseTitle = ref('')
+const editComment = ref('')
+const savingEdit = ref(false)
 const selectedDate = ref<string | null>(null)
 
 const seoulParts = new Intl.DateTimeFormat('en-CA', {
@@ -132,11 +137,27 @@ function endPull() {
   if (shouldRefresh) void refreshHistory()
 }
 
-async function editPost(courseId: string, currentComment: string) {
+function editPost(courseId: string, currentComment: string, courseTitle: string) {
   const post = postsByCourseId.value.get(courseId)
   if (!post) return
-  const nextComment = prompt('수정할 한 줄 코멘트를 입력해 주세요.', currentComment)
-  if (nextComment !== null) await store.updateCommunityPost(post.postId, nextComment)
+  editPostId.value = post.postId
+  editCourseTitle.value = courseTitle
+  editComment.value = currentComment
+}
+
+function closeEditModal() {
+  if (savingEdit.value) return
+  editPostId.value = null
+  editCourseTitle.value = ''
+  editComment.value = ''
+}
+
+async function savePostEdit() {
+  if (!editPostId.value || !editComment.value.trim() || savingEdit.value) return
+  savingEdit.value = true
+  const saved = await store.updateCommunityPost(editPostId.value, editComment.value)
+  savingEdit.value = false
+  if (saved) closeEditModal()
 }
 
 async function deletePost(courseId: string) {
@@ -216,7 +237,9 @@ onMounted(() => {
             @click="selectCalendarDate(day.date, day.count)"
           >
             <span>{{ day.day }}</span>
-            <i v-if="day.count > 0">{{ day.count > 1 ? day.count : '♥' }}</i>
+            <i v-if="day.count > 0" :aria-label="`데이트 ${day.count}건`">
+              {{ day.count > 1 ? day.count : '♥' }}
+            </i>
           </button>
         </div>
         <p class="calendar-help">하트가 있는 날짜를 누르면 그날의 추억만 볼 수 있어요.</p>
@@ -251,7 +274,9 @@ onMounted(() => {
           </div>
           <div class="hcomment">“{{ item.oneLineComment ?? '남긴 코멘트가 없어요.' }}”</div>
           <div v-if="postsByCourseId.has(item.courseId)" class="post-actions">
-            <button @click="editPost(item.courseId, item.oneLineComment ?? '')">게시글 수정</button>
+            <button @click="editPost(item.courseId, item.oneLineComment ?? '', item.courseTitle)">
+              게시글 수정
+            </button>
             <button class="delete" @click="deletePost(item.courseId)">게시글 삭제</button>
           </div>
         </BaseCard>
@@ -263,6 +288,36 @@ onMounted(() => {
         }}</strong>
         <p>데이트를 완료하면 이곳에 날짜와 코스가 자동으로 기록돼요.</p>
       </BaseCard>
+    </div>
+
+    <div v-if="editPostId" class="edit-modal-overlay" @click.self="closeEditModal">
+      <section class="edit-modal" role="dialog" aria-modal="true" aria-labelledby="edit-title">
+        <div class="edit-modal-icon">✎</div>
+        <span>MEMORY NOTE</span>
+        <h3 id="edit-title">게시글 코멘트 수정</h3>
+        <p>{{ editCourseTitle }}</p>
+        <label for="history-edit-comment">한 줄 코멘트</label>
+        <textarea
+          id="history-edit-comment"
+          v-model="editComment"
+          maxlength="80"
+          placeholder="데이트의 기억을 한 줄로 남겨 주세요."
+          autofocus
+        ></textarea>
+        <div class="edit-character-count">{{ editComment.length }} / 80</div>
+        <div class="edit-modal-actions">
+          <BaseButton variant="secondary" :disabled="savingEdit" @click="closeEditModal">
+            취소
+          </BaseButton>
+          <BaseButton
+            variant="primary"
+            :disabled="!editComment.trim() || savingEdit"
+            @click="savePostEdit"
+          >
+            {{ savingEdit ? '저장 중…' : '수정 저장' }}
+          </BaseButton>
+        </div>
+      </section>
     </div>
   </div>
 </template>
@@ -402,9 +457,11 @@ onMounted(() => {
 
 .calendar-grid button {
   position: relative;
-  height: 34px;
-  display: grid;
-  place-items: center;
+  height: 41px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 7px;
   border-radius: 11px;
   color: #66575a;
   font-size: 9px;
@@ -429,12 +486,26 @@ onMounted(() => {
 
 .calendar-grid i {
   position: absolute;
-  right: 3px;
-  bottom: 2px;
-  color: inherit;
-  font-size: 6px;
+  bottom: 3px;
+  left: 50%;
+  min-width: 16px;
+  height: 12px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  transform: translateX(-50%);
+  background: #e75d78;
+  color: #fff;
+  font-size: 7px;
   font-style: normal;
   font-weight: 900;
+  line-height: 1;
+  box-shadow: 0 3px 7px rgba(208, 81, 110, 0.2);
+}
+
+.calendar-grid button.selected i {
+  background: #fff;
+  color: #d45c78;
 }
 
 .calendar-help {
@@ -608,5 +679,99 @@ onMounted(() => {
   margin: 0;
   color: var(--muted);
   font-size: 9px;
+}
+
+.edit-modal-overlay {
+  position: absolute;
+  z-index: 120;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(53, 42, 45, 0.48);
+  backdrop-filter: blur(5px);
+}
+
+.edit-modal {
+  width: 100%;
+  max-width: 350px;
+  padding: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 25px;
+  background: radial-gradient(circle at 92% 0%, rgba(232, 221, 255, 0.72), transparent 32%), #fff;
+  box-shadow: 0 24px 60px rgba(65, 45, 53, 0.24);
+}
+
+.edit-modal-icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 12px;
+  border-radius: 16px 16px 16px 5px;
+  background: linear-gradient(145deg, var(--pink), #9d83db);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.edit-modal > span {
+  color: #bd6980;
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+}
+
+.edit-modal h3 {
+  margin: 4px 0 3px;
+  font-size: 17px;
+}
+
+.edit-modal > p {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.edit-modal label {
+  display: block;
+  margin: 0 0 6px 2px;
+  color: #7d656b;
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.edit-modal textarea {
+  width: 100%;
+  height: 100px;
+  padding: 13px;
+  resize: none;
+  border: 1px solid #eadde1;
+  border-radius: 15px;
+  outline: 0;
+  background: #fffaf9;
+  color: var(--ink);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.edit-modal textarea:focus {
+  border-color: var(--pink);
+  box-shadow: 0 0 0 3px rgba(255, 130, 149, 0.11);
+}
+
+.edit-character-count {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 8px;
+  text-align: right;
+}
+
+.edit-modal-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 15px;
 }
 </style>

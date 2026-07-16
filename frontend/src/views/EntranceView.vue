@@ -123,8 +123,6 @@ async function handleAuth() {
           }}
         </p>
       </BaseCard>
-
-      <p class="demo-help">와이어프레임 데모 계정: 복숭아와호두 / 0420</p>
     </div>
   </div>
 </template>
@@ -264,13 +262,5 @@ async function handleAuth() {
   font-size: 10px;
   line-height: 1.5;
   margin-top: 10px;
-}
-
-.demo-help {
-  text-align: center;
-  color: var(--muted);
-  font-size: 10px;
-  line-height: 1.5;
-  margin-top: 12px;
 }
 </style>

@@ -109,7 +109,7 @@ async function refreshRankings() {
   if (rankTab.value === 'masters') {
     await store.loadMasters()
   } else {
-    await store.loadRankings(currentPage.value)
+    await Promise.all([store.loadRankings(currentPage.value), store.loadFeaturedRankings()])
     const lastPage = Math.max(1, store.rankingMeta?.totalPages ?? 1)
     if (currentPage.value > lastPage) {
       currentPage.value = lastPage
@@ -194,6 +194,36 @@ watch(rankTab, () => {
         </button>
       </div>
 
+      <section
+        v-if="rankTab === 'all' && store.featuredRankings.length"
+        class="live-ranking"
+        aria-label="실시간 인기 코스 상위 3개"
+      >
+        <div class="live-ranking-head">
+          <div>
+            <span><i></i> LIVE TOP 3</span>
+            <strong>지금 가장 사랑받는 코스</strong>
+          </div>
+          <small>옆으로 밀어보세요 →</small>
+        </div>
+        <div class="live-slider">
+          <article
+            v-for="(item, index) in store.featuredRankings"
+            :key="item.postId"
+            :class="['live-slide', `live-rank-${index + 1}`]"
+          >
+            <div class="live-rank-number">0{{ index + 1 }}</div>
+            <span>{{ formatDistrict(item.mainDistrict) }}</span>
+            <h3>{{ item.courseTitle }}</h3>
+            <p>by {{ item.authorNickname }}</p>
+            <div>
+              <strong>♥ {{ item.courseLikeCount }}</strong>
+              <small>데이트 코스 좋아요</small>
+            </div>
+          </article>
+        </div>
+      </section>
+
       <!-- Rankings List -->
       <div class="ranking-section-head">
         <div>
@@ -277,6 +307,7 @@ watch(rankTab, () => {
                 )
               "
               :places="store.selectedCommunityCourse.places.map((place) => place.place.name)"
+              :images="store.selectedCommunityCourse.places.map((place) => place.place.imageUrl)"
               static
             />
           </div>
@@ -461,6 +492,153 @@ watch(rankTab, () => {
   background: linear-gradient(135deg, var(--pink), #a887df);
   color: #fff;
   box-shadow: 0 7px 14px rgba(225, 103, 134, 0.22);
+}
+
+.live-ranking {
+  margin-top: 14px;
+}
+
+.live-ranking-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 0 3px 9px;
+}
+
+.live-ranking-head span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #d45b74;
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.live-ranking-head span i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ef4764;
+  box-shadow: 0 0 0 4px rgba(239, 71, 100, 0.12);
+  animation: live-pulse 1.4s ease-in-out infinite;
+}
+
+.live-ranking-head strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+}
+
+.live-ranking-head > small {
+  color: var(--muted);
+  font-size: 7px;
+}
+
+.live-slider {
+  display: grid;
+  grid-auto-columns: 82%;
+  grid-auto-flow: column;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 1px 3px 10px;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+
+.live-slider::-webkit-scrollbar {
+  display: none;
+}
+
+.live-slide {
+  position: relative;
+  min-height: 148px;
+  padding: 18px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 22px;
+  background: linear-gradient(135deg, #ffe2e9, #f1e9ff);
+  box-shadow: 0 12px 24px rgba(97, 65, 83, 0.12);
+  scroll-snap-align: start;
+}
+
+.live-slide::after {
+  position: absolute;
+  right: -24px;
+  bottom: -38px;
+  width: 110px;
+  height: 110px;
+  border: 24px solid rgba(255, 255, 255, 0.28);
+  border-radius: 50%;
+  content: '';
+}
+
+.live-slide.live-rank-2 {
+  background: linear-gradient(135deg, #e9e4ff, #ffeaf1);
+}
+
+.live-slide.live-rank-3 {
+  background: linear-gradient(135deg, #fff0d8, #ffe5ec);
+}
+
+.live-rank-number {
+  position: absolute;
+  top: 13px;
+  right: 16px;
+  color: rgba(116, 77, 94, 0.18);
+  font-size: 34px;
+  font-weight: 900;
+}
+
+.live-slide > span {
+  color: #bd6077;
+  font-size: 8px;
+  font-weight: 900;
+}
+
+.live-slide h3 {
+  max-width: 78%;
+  margin: 6px 0 4px;
+  overflow: hidden;
+  font-size: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.live-slide > p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 8px;
+}
+
+.live-slide > div:last-child {
+  position: absolute;
+  bottom: 16px;
+  left: 18px;
+  z-index: 1;
+}
+
+.live-slide > div:last-child strong,
+.live-slide > div:last-child small {
+  display: block;
+}
+
+.live-slide > div:last-child strong {
+  color: #cf4f6b;
+  font-size: 15px;
+}
+
+.live-slide > div:last-child small {
+  margin-top: 2px;
+  color: #866e74;
+  font-size: 7px;
+}
+
+@keyframes live-pulse {
+  50% {
+    opacity: 0.45;
+    transform: scale(0.82);
+  }
 }
 
 .ranking-section-head {

@@ -1,13 +1,21 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useDateStore } from '@/stores/dateStore'
 import BaseButton from './BaseButton.vue'
 
 const store = useDateStore()
+const router = useRouter()
 const comment = ref('')
-function submit() {
-  void store.submitReview(comment.value)
+const submitting = ref(false)
+async function submit() {
+  if (!comment.value.trim() || submitting.value) return
+  submitting.value = true
+  const completed = await store.submitReview(comment.value)
+  submitting.value = false
+  if (!completed) return
   comment.value = ''
+  await router.push({ name: 'ranking' })
 }
 
 function cancel() {
@@ -27,8 +35,12 @@ function cancel() {
         placeholder="예: 비 오는 날에도 이동이 편해서 좋았어요!"
       ></textarea>
       <div class="modalacts">
-        <BaseButton variant="secondary" @click="cancel">조금 더 데이트</BaseButton>
-        <BaseButton variant="primary" @click="submit">기록 남기기</BaseButton>
+        <BaseButton variant="secondary" :disabled="submitting" @click="cancel">
+          조금 더 데이트
+        </BaseButton>
+        <BaseButton variant="primary" :disabled="!comment.trim() || submitting" @click="submit">
+          {{ submitting ? '기록 중…' : '기록 남기기' }}
+        </BaseButton>
       </div>
     </div>
   </div>
